@@ -18,6 +18,12 @@ function ecyl(x, y, z, cy, rx, rz, hy, cz, round) {
   const dy = Math.abs(y - cy) - hy + round;
   return Math.hypot(Math.max(dxz, 0), Math.max(dy, 0)) + Math.min(Math.max(dxz, dy), 0) - round;
 }
+// 2Dの先細りのカプセル（xy平面）
+function taper2d(x, y, ax, ay, bx, by, ra, rb) {
+  const px = x - ax, py = y - ay, vx = bx - ax, vy = by - ay;
+  const h = clamp((px * vx + py * vy) / (vx * vx + vy * vy), 0, 1);
+  return Math.hypot(px - vx * h, py - vy * h) - (ra + (rb - ra) * h);
+}
 function cap(x, y, z, ax, ay, az, bx, by, bz, r) {
   const px = x - ax, py = y - ay, pz = z - az, vx = bx - ax, vy = by - ay, vz = bz - az;
   const h = clamp((px * vx + py * vy + pz * vz) / (vx * vx + vy * vy + vz * vz), 0, 1);
@@ -33,7 +39,8 @@ function core(x, y, z) {
   d = smin(d, ell(x, y, z, 0, 0.6, 0.06, 0.155, 0.17, 0.15), 0.06);         // 大きなお腹
   d = smin(d, ell(x, y, z, 0, 0.78, 0, 0.12, 0.08, 0.1), 0.06);             // くびれ
   d = smin(d, ell(x, y, z, 0, 0.9, 0, 0.15, 0.08, 0.1), 0.05);              // 胸
-  d = smin(d, ecyl(x, y, z, 1.255, 0.165, 0.14, 0.105, -0.025, 0.03), 0.03);   // 頭（上が平らな円筒）
+  d = smin(d, ecyl(x, y, z, 1.25, 0.168, 0.14, 0.15, -0.025, 0.03), 0.03);    // 頭（ボンネットのような円筒）
+  d = Math.max(d, y - (1.36 - 0.3 * z));                                        // 頭の上は平らで、後ろが少し高い
   return d;
 }
 
@@ -45,15 +52,21 @@ function sdf(x, y, z) {
   d = smin(d, ell(ax, y, z, 0.17, 0.935, 0, 0.08, 0.042, 0.055), 0.04);     // 短い腕
   d = smin(d, ell(ax, y, z, 0.055, 0.88, 0.085, 0.03, 0.03, 0.026), 0.02);  // 乳房
   d = Math.max(d, -ell(x, y, z, 0, 0.62, 0.21, 0.012, 0.016, 0.02));       // へそ
-  d = smin(d, cap(x, y, z, 0, 0.92, 0, 0, 1.1, 0.0, 0.058), 0.04);           // 細長い首
+  d = smin(d, cap(x, y, z, 0, 0.93, 0, 0, 1.08, 0.0, 0.072), 0.05);           // 首
   // 頭の正面の下側をくりぬき、そこに顔をはめこむ（帽子のつばのようになる）
-  d = Math.max(d, -ell(x, y, z, 0, 1.15, 0.17, 0.112, 0.11, 0.1));
+  d = Math.max(d, -ell(x, y, z, 0, 1.12, 0.2, 0.108, 0.13, 0.14));          // 顔の入る正面の開き
   // 顔：小さなハート形、つり上がった切れ長の目、とがった鼻、口
-  let face = ell(x, y, z, 0, 1.17, 0.055, 0.088, 0.08, 0.08);
-  face = smin(face, ell(x, y, z, 0, 1.11, 0.07, 0.045, 0.04, 0.05), 0.02);
-  face = smin(face, ell(x, y, z, 0, 1.16, 0.135, 0.014, 0.028, 0.022), 0.01);
-  face = Math.max(face, -cap(ax, y, z, 0.02, 1.178, 0.13, 0.066, 1.198, 0.103, 0.0075));
-  face = Math.max(face, -ell(x, y, z, 0, 1.115, 0.115, 0.011, 0.008, 0.02));
+  // ハート形の平たい顔（上が左右にふくらみ、あごがとがる）
+  const h2 = Math.min(
+    Math.hypot(ax - 0.043, y - 1.195) - 0.05,
+    taper2d(x, y, 0, 1.17, 0, 1.098, 0.07, 0.026),
+  );
+  const zf = 0.15 - 1.8 * x * x;                      // 正面はゆるやかにふくらむ
+  const dz = Math.max(z - zf, 0.02 - z);
+  let face = Math.hypot(Math.max(h2, 0), Math.max(dz, 0)) + Math.min(Math.max(h2, dz), 0) - 0.006;
+  face = smin(face, ell(x, y, z, 0, 1.165, zf + 0.002, 0.012, 0.015, 0.016), 0.006);                // 小さな鼻
+  face = Math.max(face, -cap(ax, y, z, 0.02, 1.178, zf + 0.004, 0.064, 1.2, zf - 0.004, 0.0065));  // つり目
+  face = Math.max(face, -ell(x, y, z, 0, 1.112, zf, 0.01, 0.009, 0.02));                          // 口
   d = smin(d, face, 0.015);
   // 耳の穴
   d = Math.max(d, -ell(ax, y, z, 0.16, 1.21, -0.02, 0.02, 0.012, 0.012));
@@ -84,13 +97,13 @@ float patH(vec3 p) {
     return -max(eye, mouth) * 2.2 * 0.0011;
   }
   // 頭頂：大きな渦巻ひとつ
-  if (p.y > 1.345) {
+  if (p.y > 1.335 - 0.3 * p.z) {
     vec2 q = vec2(p.x, (p.z + 0.025) * 1.15);
     h = max(h, vnSpiral(q, 0.026, 0.15));
   }
   // 頭の側面〜後ろの帯：上下の沈線と、左右一対の渦巻
-  if (p.y > 1.16 && p.y < 1.36 && p.z < 0.06) {
-    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - 1.335));
+  if (p.y > 1.16 && p.y < 1.4 && p.z < 0.06) {
+    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - (1.335 - 0.3 * p.z)));
     h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - 1.17));
     if (p.z < -0.03) {
       float sx = p.x >= 0.0 ? 1.0 : -1.0;
@@ -129,7 +142,7 @@ export const venus = {
   core,
   thickness: 0.055,
   voxel: 0.0135,
-  bounds: { min: [-0.32, -0.02, -0.28], max: [0.32, 1.39, 0.25] },
+  bounds: { min: [-0.32, -0.02, -0.28], max: [0.32, 1.43, 0.25] },
   height: 1.36,
   patternGLSL,
   bumpStrength: 1.0,

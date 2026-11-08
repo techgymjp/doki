@@ -35,8 +35,8 @@ function sdTri(px, py, ax, ay, bx, by, cx, cy) {
   return -Math.sqrt(dd) * Math.sign(ss);
 }
 
-// 仮面：上が前に傾いた逆三角形の板
-const MASK = { cy: 1.2, cz: 0.07, a: 0.38 };
+// 仮面：斜め上を向いた逆三角形の板（上のふちが後ろ、下のとがりが前）
+const MASK = { cy: 1.19, cz: 0.12, a: -0.55 };
 function maskLocal(x, y, z) {
   const dy = y - MASK.cy, dz = z - MASK.cz, c = Math.cos(MASK.a), s = Math.sin(MASK.a);
   return [x, dy * c + dz * s, -dy * s + dz * c];
@@ -52,9 +52,9 @@ function maskSdf(x, y, z) {
 function core(x, y, z) {
   const ax = Math.abs(x);
   let d = ell(ax, y, z, 0.225, 0.27, 0, 0.2, 0.25, 0.18);                 // ふくらんだ脚
-  d = smin(d, ell(x, y, z, 0, 0.56, 0, 0.3, 0.085, 0.165), 0.05);         // 腰
+  d = smin(d, ell(x, y, z, 0, 0.56, 0, 0.27, 0.085, 0.16), 0.05);         // 腰
   d = smin(d, ell(x, y, z, 0, 0.76, 0, 0.245, 0.21, 0.145), 0.06);        // 胴
-  d = smin(d, ell(x, y, z, 0, 1.1, -0.06, 0.1, 0.1, 0.1), 0.05);          // 仮面の後ろの頭
+  d = smin(d, ell(x, y, z, 0, 1.15, -0.01, 0.085, 0.085, 0.075), 0.04);  // 仮面のすぐ後ろの頭
   return d;
 }
 
@@ -62,12 +62,18 @@ function sdf(x, y, z) {
   const ax = Math.abs(x);
   let d = core(x, y, z);
   d = smin(d, ell(ax, y, z, 0.225, 0.04, 0.0, 0.17, 0.045, 0.15), 0.04);   // 脚の台
-  d = smin(d, ell(x, y, z, 0, 0.585, 0, 0.29, 0.026, 0.165), 0.02);        // 腰の帯
+  d = smin(d, ell(x, y, z, 0, 0.585, 0, 0.262, 0.02, 0.158), 0.02);       // 腰の帯
   // 水平にのばした腕（先がやや下がる）と、渦巻のある手先
   d = smin(d, cap(ax, y, z, 0.12, 0.93, 0, 0.39, 0.9, 0.0, 0.055), 0.05);
   d = smin(d, ell(ax, y, z, 0.405, 0.875, 0.0, 0.055, 0.085, 0.05), 0.03);
-  d = smin(d, cap(x, y, z, 0, 0.95, -0.02, 0, 1.08, -0.04, 0.075), 0.04);  // 首
-  d = smin(d, ell(x, y, z, 0, 1.17, -0.08, 0.06, 0.06, 0.06), 0.03);      // まげ
+  d = smin(d, cap(x, y, z, 0, 0.94, -0.01, 0, 1.08, 0.0, 0.078), 0.04);   // 太く短い首
+  // 頭の後ろ：かぶとのように丸い頭（仮面の下半分ほどの幅）と、前から後ろへ通る筋
+  d = smin(d, ell(x, y, z, 0, 1.2, -0.02, 0.11, 0.13, 0.1), 0.03);
+  d = smin(d, cap(x, y, z, 0, 1.335, 0.0, 0, 1.13, -0.118, 0.016), 0.015);
+  d = Math.max(d, -ell(ax, y, z, 0.108, 1.17, -0.01, 0.03, 0.02, 0.02));    // 頭の横の穴
+  // 背中：頭から下がるV字の飾りと、腰の小さなふくらみ
+  d = smin(d, cap(ax, y, z, 0.065, 1.04, -0.095, 0.0, 0.86, -0.142, 0.018), 0.02);
+  d = smin(d, ell(ax, y, z, 0.075, 0.6, -0.152, 0.035, 0.03, 0.025), 0.015);
   d = smin(d, maskSdf(x, y, z), 0.02);                                    // 仮面
   // おへそ（同心円の中心）
   d = smin(d, ell(x, y, z, 0, 0.72, 0.148, 0.018, 0.018, 0.012), 0.008);
@@ -87,8 +93,8 @@ float patH(vec3 p) {
   float ax = abs(p.x);
   float g = 0.0;
   // 仮面：ふちの盛り上がり・鼻すじ・目
-  float c = cos(0.38), s = sin(0.38);
-  float dy = p.y - 1.2, dz = p.z - 0.07;
+  float c = cos(-0.55), s = sin(-0.55);
+  float dy = p.y - 1.19, dz = p.z - 0.12;
   vec2 m = vec2(p.x, dy * c + dz * s);
   float w = -dy * s + dz * c;
   if (w > 0.02 && m.y > -0.19 && m.y < 0.18) {
@@ -98,6 +104,21 @@ float patH(vec3 p) {
     float eye = 1.0 - smoothstep(0.005, 0.009, length(vec2(ax - 0.06, m.y - 0.05)));
     float brow = mgLine(m.y - 0.085 - ax * 0.25, 0.007) * step(ax, 0.12);
     return (rim * 0.8 + nose * 0.8 - eye * 1.5 - brow) * 0.0012;
+  }
+  // 頭の後ろ：筋の上の点の列と、帽子のふちのような線
+  if (p.y > 1.07 && p.z < 0.03 && w < 0.0) {
+    float hh = 0.0;
+    if (abs(p.x) < 0.02) hh = -(1.0 - smoothstep(0.004, 0.007, length(vec2(p.x, fract(length(p.yz - vec2(1.13, -0.118)) / 0.022) * 0.022 - 0.011))));
+    hh = min(hh, -mgLine(p.y - 1.1 + p.z * 0.4, 0.008));
+    return hh * 0.0012;
+  }
+  // 背中：一対の渦巻とななめの線
+  if (p.z < -0.05 && p.y > 0.62 && p.y < 0.95) {
+    float b = 0.0;
+    b = max(b, mgSpiral(vec2(p.x + 0.06, p.y - 0.85), 0.016, 0.055));
+    b = max(b, mgSpiral(vec2(p.x - 0.07, p.y - 0.7), 0.016, 0.055));
+    for (int i = 0; i < 3; i++) b = max(b, mgLine(p.y - 0.78 - float(i) * 0.025 - p.x * 0.45, 0.007) * step(abs(p.x), 0.2));
+    return -b * 0.0013;
   }
   if (p.z > 0.0) {
     // お腹の同心円
