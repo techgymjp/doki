@@ -96,6 +96,10 @@ export class Game {
     table.receiveShadow = true;
     scene.add(table);
 
+    // はまった時に光らせるライト（数が変わるとシェーダーが作り直されて止まるので、最初から置いておく）
+    this.snapLight = new THREE.PointLight(0xffc870, 0, 2.5, 1.5);
+    scene.add(this.snapLight);
+
     this.potGroup = new THREE.Group();
     scene.add(this.potGroup);
     this.ghostGroup = new THREE.Group();
@@ -166,7 +170,7 @@ export class Game {
       ];
     }
     onProgress(0.4);
-    this.ghostMat = new THREE.MeshBasicMaterial({ color: 0x6e5a44, transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide });
+    this.ghostMat = new THREE.MeshBasicMaterial({ color: 0x6e5a44, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide });
     if (def.type === 'sdf') this.ghostMat.opacity = 0.1;
     this.slotMat = new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.35, depthWrite: false });
     await nextFrame();
@@ -434,8 +438,10 @@ export class Game {
   _place(p) {
     p.placed = true;
     this._animate(p, { toPos: p.center, toQuat: new THREE.Quaternion(), dur: 160, easing: ease, onDone: () => {
-      sfx.playSnap();
+      sfx.playSnap(this._placedCount() / this.pieces.length);
       this._dust(p.center.clone(), 28, 0xe8d4b0, 0.6);
+      this._dust(p.center.clone(), 40, 0xffd772, 0.9, { additive: true, size: 0.045, gravity: 0.6, life: 1.1 });
+      this._burst(p.center.clone());
       this._flash(p);
       this._emitCount();
       if (this.pieces.every((q) => q.placed)) this._complete();
@@ -499,6 +505,20 @@ export class Game {
     p.flashT = performance.now();
   }
 
+  // はまった場所がパッと光る（光の玉＋周りを照らす光）
+  _burst(at) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture(), color: 0xffd27a, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, depthTest: false,
+    }));
+    sp.position.copy(at);
+    sp.renderOrder = 10;
+    this.scene.add(sp);
+    this.snapLight.position.copy(at);
+    this.bursts = this.bursts || [];
+    this.bursts.push({ sp, t0: performance.now() });
+  }
+
   _clearAnim(p) { this.anims = this.anims.filter((a) => a.p !== p); }
   _clearAnims() { this.anims = []; }
 
@@ -513,7 +533,7 @@ export class Game {
     });
   }
 
-  _dust(at, n, color, spread) {
+  _dust(at, n, color, spread, opt = {}) {
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(n * 3), vel = [];
     for (let i = 0; i < n; i++) {
@@ -523,10 +543,15 @@ export class Game {
       vel.push(v);
     }
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color, size: 0.03, transparent: true, opacity: 0.9, depthWrite: false });
+    const mat = new THREE.PointsMaterial({
+      color, size: opt.size || 0.03, transparent: true, opacity: 0.9, depthWrite: false,
+      map: opt.additive ? glowTexture() : null,
+      blending: opt.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    });
     const pts = new THREE.Points(geo, mat);
+    if (opt.additive) pts.renderOrder = 5;
     this.scene.add(pts);
-    this.particles.push({ pts, vel, t: 0 });
+    this.particles.push({ pts, vel, t: 0, gravity: opt.gravity ?? 2.2, life: opt.life ?? 1.6 });
   }
 
   // ---------------- 毎フレーム ----------------
@@ -583,9 +608,13 @@ export class Game {
     // 光る演出
     for (const p of this.pieces) {
       if (p.flashT) {
-        const k = (now - p.flashT) / 600;
+        const k = (now - p.flashT) / 900;
         if (k >= 1) { p.flashT = 0; this._setGlow(p, 0x000000); }
-        else { const c = new THREE.Color(0x6b5a2a).multiplyScalar(1 - k); for (const m of p.mats) m.emissive.copy(c); }
+        else {
+          // 白く光ってから金色に、ゆっくり消える
+          const c = new THREE.Color(0xfff4d6).lerp(new THREE.Color(0xffa733), Math.min(1, k * 3)).multiplyScalar(0.85 * Math.pow(1 - k, 1.6));
+          for (const m of p.mats) m.emissive.copy(c);
+        }
       } else if (p.hintUntil && !p.placed) {
         if (now > p.hintUntil) { p.hintUntil = 0; if (this.drag?.p !== p) this._setGlow(p, 0x000000); }
         else if (this.drag?.p !== p) { const s = 0.5 + 0.5 * Math.sin(now / 120); for (const m of p.mats) m.emissive.setRGB(0.45 * s, 0.33 * s, 0.05 * s); }
@@ -593,26 +622,61 @@ export class Game {
     }
     if (this._slot) this.slotMat.opacity = 0.22 + 0.18 * Math.sin(now / 160);
 
+    // はまった時の光
+    if (this.bursts) {
+      this.bursts = this.bursts.filter((b) => {
+        const k = (now - b.t0) / 700;
+        if (k >= 1) {
+          this.scene.remove(b.sp); b.sp.material.dispose();
+          return false;
+        }
+        const s = 0.25 + 1.1 * ease(k);
+        b.sp.scale.set(s, s, s);
+        b.sp.material.opacity = Math.pow(1 - k, 1.5);
+        return true;
+      });
+      const last = this.bursts[this.bursts.length - 1];
+      this.snapLight.intensity = last ? 6 * Math.pow(1 - Math.min(1, (now - last.t0) / 700), 2) : 0;
+    }
+
     // 粒子
     this.particles = this.particles.filter((pa) => {
       pa.t += dt;
       const a = pa.pts.geometry.attributes.position;
       for (let i = 0; i < pa.vel.length; i++) {
-        pa.vel[i].y -= 2.2 * dt;
+        pa.vel[i].y -= pa.gravity * dt;
         pa.vel[i].multiplyScalar(1 - 1.5 * dt);
         a.array[i * 3] += pa.vel[i].x * dt;
         a.array[i * 3 + 1] = Math.max(0.005, a.array[i * 3 + 1] + pa.vel[i].y * dt);
         a.array[i * 3 + 2] += pa.vel[i].z * dt;
       }
       a.needsUpdate = true;
-      pa.pts.material.opacity = Math.max(0, 0.9 * (1 - pa.t / 1.6));
-      if (pa.t > 1.6) { this.scene.remove(pa.pts); pa.pts.geometry.dispose(); pa.pts.material.dispose(); return false; }
+      pa.pts.material.opacity = Math.max(0, 0.9 * (1 - pa.t / pa.life));
+      if (pa.t > pa.life) { this.scene.remove(pa.pts); pa.pts.geometry.dispose(); pa.pts.material.dispose(); return false; }
       return true;
     });
 
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
+}
+
+let _glowTex = null;
+function glowTexture() {
+  if (_glowTex) return _glowTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.25, 'rgba(255,230,170,0.75)');
+  grd.addColorStop(0.6, 'rgba(255,170,60,0.18)');
+  grd.addColorStop(1, 'rgba(255,150,40,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 128, 128);
+  _glowTex = new THREE.CanvasTexture(c);
+  _glowTex.colorSpace = THREE.SRGBColorSpace;
+  return _glowTex;
 }
 
 function nextFrame() {

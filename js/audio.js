@@ -43,11 +43,30 @@ function thump(t, freq = 150, vol = 0.5, dur = 0.15) {
   o.start(t); o.stop(t + dur);
 }
 
-export function playSnap() {
+function bell(t, freq, vol, dur) {
+  for (const [mul, v] of [[1, 1], [2.01, 0.35], [3.02, 0.12]]) {
+    const o = ctx.createOscillator();
+    o.type = 'sine'; o.frequency.value = freq * mul;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol * v, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+}
+
+// ピースがはまった音：「カチッ」＋「キラーン」。進むほど音が高くなる
+const SCALE = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51, 1567.98, 1760];
+export function playSnap(progress = 0) {
   if (!ctx || muted) return;
   const t = ctx.currentTime;
-  clack(t, 2200, 0.45, 0.05);
-  thump(t, 220, 0.35, 0.12);
+  clack(t, 2400, 0.55, 0.045);
+  clack(t + 0.012, 1200, 0.3, 0.06);
+  thump(t, 200, 0.45, 0.14);
+  const i = Math.min(SCALE.length - 2, Math.floor(progress * (SCALE.length - 2)));
+  bell(t + 0.05, SCALE[i], 0.22, 0.9);
+  bell(t + 0.13, SCALE[i + 1] * 1.5, 0.13, 0.8);
 }
 export function playPick() {
   if (!ctx || muted) return;
