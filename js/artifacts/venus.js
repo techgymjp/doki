@@ -133,10 +133,25 @@ function procSdf(x, y, z) {
 // ---- 体の形はご提供の3Dデータ（実物の写真から作られたもの）を使う ----
 //   data/venus-sdf.json / .bin : 3Dデータを距離の格子に変換したもの（Int8）
 //   首から上（帽子・顔・渦巻）は、細部をはっきりさせるため形を作り込んだものにつなぐ
+import * as THREE from 'three';
 import { loadSdfGrid } from './sdfdata.js';
 let dataSdf = null;
+// 顔・帽子の文様：3Dデータの写真の色から、暗い線（目・口・渦巻・沈線）を取り出した立体の地図
+const detailUniforms = { uDetail: { value: null }, uDetMin: { value: new THREE.Vector3() }, uDetSize: { value: new THREE.Vector3() } };
 async function prepare() {
   if (!dataSdf) dataSdf = await loadSdfGrid('venus');
+  if (!detailUniforms.uDetail.value) {
+    const base = new URL('./data/', import.meta.url);
+    const h = await (await fetch(new URL('venus-head-detail.json', base))).json();
+    const buf = new Uint8Array(await (await fetch(new URL('venus-head-detail.bin', base))).arrayBuffer());
+    const [nx, ny, nz] = h.dims;
+    const t = new THREE.Data3DTexture(buf, nx, ny, nz);
+    t.format = THREE.RedFormat; t.type = THREE.UnsignedByteType;
+    t.minFilter = t.magFilter = THREE.LinearFilter; t.unpackAlignment = 1; t.needsUpdate = true;
+    detailUniforms.uDetail.value = t;
+    detailUniforms.uDetMin.value.set(h.min[0] - h.voxel / 2, h.min[1] - h.voxel / 2, h.min[2] - h.voxel / 2);
+    detailUniforms.uDetSize.value.set(nx * h.voxel, ny * h.voxel, nz * h.voxel);
+  }
 }
 // 両足：3Dデータでは左右がくっついているので、データの太さ・奥行きに合わせて2本に分けて作り直す
 function legs(x, y, z) {
@@ -156,11 +171,8 @@ function body(x, y, z) {
 }
 const mixHead = (y) => { const t = clamp((y - 1.0) / 0.08, 0, 1); return t * t * (3 - 2 * t); };
 function sdf(x, y, z) {
-  const t = mixHead(y);
-  let d;
-  if (t <= 0) d = body(x, y, z);
-  else if (t >= 1) d = procSdf(x, y, z);
-  else d = body(x, y, z) * (1 - t) + procSdf(x, y, z) * t;
+  // 頭（帽子・顔・耳）も3Dデータの形をそのまま使う
+  let d = body(x, y, z);
   // 写真から：小さな乳房と、垂れたお腹の先のへその穴
   const ax = Math.abs(x);
   if (y > 0.75 && y < 0.98) d = smin(d, ell(ax, y, z, 0.06, 0.865, 0.118, 0.026, 0.026, 0.024), 0.012);
@@ -178,10 +190,7 @@ function sdf(x, y, z) {
   return Math.max(d, -y);
 }
 function core(x, y, z) {
-  const t = mixHead(y);
-  if (t <= 0) return body(x, y, z);
-  if (t >= 1) return procCore(x, y, z);
-  return body(x, y, z) * (1 - t) + procCore(x, y, z) * t;
+  return body(x, y, z);
 }
 
 // 外面：よく磨かれた肌と、きらきら光る雲母、頭頂の渦巻文
@@ -195,42 +204,17 @@ float vnSpiral(vec2 q, float pitch, float rmax) {
   float d = abs(t - floor(t + 0.5)) * pitch;
   return 1.0 - smoothstep(0.004, 0.008, d);
 }
+uniform highp sampler3D uDetail;
+uniform vec3 uDetMin;
+uniform vec3 uDetSize;
+float headDetail(vec3 p) {
+  vec3 q = (p - uDetMin) / uDetSize;
+  if (any(lessThan(q, vec3(0.0))) || any(greaterThan(q, vec3(1.0)))) return 0.0;
+  return texture(uDetail, q).r * smoothstep(1.07, 1.11, p.y);
+}
 float patH(vec3 p) {
-  float h = 0.0;
-  // 顔：つり上がった細い目（溝）
-  if (p.z > 0.1 && abs(p.x) < 0.09 && p.y > 1.15 && p.y < 1.26) {
-    vec2 a = vec2(0.022, 1.203), b = vec2(0.07, 1.226);
-    vec2 q = vec2(abs(p.x), p.y);
-    float t = clamp(dot(q - a, b - a) / dot(b - a, b - a), 0.0, 1.0);
-    float de = length(q - a - (b - a) * t);
-    h -= (1.0 - smoothstep(0.0035, 0.0065 - t * 0.0025, de)) * 3.0;
-  }
-  // 顔：つり上がった切れ長の目と口（細い溝）
-  // 頭頂：大きな渦巻ひとつ
-  if (p.y > 1.27 + 0.22 * (p.z - 0.06)) {
-    vec2 q = vec2(p.x, (p.z - 0.045 + 0.02) * 1.1);
-    h -= vnSpiral(q, 0.038, 0.145) * 1.5;   // 形の溝と同じ位置をくっきりさせる
-  }
-  // 頭の側面〜後ろの帯：上下の沈線と、左右一対の渦巻
-  if (p.y > 1.16 && p.y < 1.4 && p.z < 0.06) {
-    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - (1.27 + 0.22 * (p.z - 0.06))));
-    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - 1.17));
-    // 写真：帽子の側面、耳の後ろ上に渦巻。そのまわりを前から後ろへ回りこむ弧の線
-    if (abs(p.x) > 0.1) {
-      vec2 q = vec2(p.z + 0.06, p.y - 1.255);
-      if (p.x < 0.0) q.x = -q.x;
-      h = max(h, vnSpiral(q, 0.019, 0.05));
-      // 写真：渦巻を囲むように何本もの曲線が前へ流れる
-      for (int i = 0; i < 3; i++) {
-        float rr = 0.07 + float(i) * 0.022;
-        float arc = abs(length(vec2(p.z + 0.06, (p.y - 1.255) * 1.25)) - rr);
-        h -= (1.0 - smoothstep(0.003, 0.006, arc)) * step(p.z, 0.04 - float(i) * 0.02) * step(1.13, p.y) * step(p.y, 1.36);
-      }
-      // つばに沿った前のふちの線
-      float rim = abs(length(vec2(abs(p.x) - 0.0, (p.y - 1.19) * 1.0)) - 0.16);
-      h -= (1.0 - smoothstep(0.003, 0.006, rim)) * step(0.06, p.z);
-    }
-  }
+  // 顔・帽子：3Dデータの暗い線を溝として刻む
+  float h = -headDetail(p) * 3.5;
   // 磨いた面のわずかなむら
   h += 0.15 * (vnHash(floor(p * 90.0)) - 0.5);
   return h * 0.0011;
@@ -248,7 +232,7 @@ vec3 patC(vec3 p, float h) {
   // 粘土にまじる雲母のきらめきと白い砂粒
   float s = vnHash(floor(p * 420.0));
   if (s > 0.994) c *= 1.9; else if (s > 0.984) c *= 1.3; else if (s < 0.01) c *= 0.75;
-  c *= 1.0 - clamp(-h / 0.0011, 0.0, 1.0) * 0.3;
+  c *= 1.0 - clamp(-h / 0.0011, 0.0, 1.0) * 0.45;
   return c;
 }
 `;
@@ -263,6 +247,7 @@ export const venus = {
   place: '長野県茅野市・棚畑遺跡',
   available: true,
   prepare,
+  patternUniforms: detailUniforms,
   sdf,
   core,
   thickness: 0.055,

@@ -378,6 +378,7 @@ export function buildSdfPieces(def, { pieceCount, seed, onProgress = () => {}, w
 export function makePatternMaterial(def) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0 });
   m.onBeforeCompile = (sh) => {
+    if (def.patternUniforms) Object.assign(sh.uniforms, def.patternUniforms);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 opos;\nattribute float pmask;\nvarying vec3 vOpos;\nvarying float vPmask;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvOpos = opos;\nvPmask = pmask;');
