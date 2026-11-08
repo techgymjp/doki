@@ -140,7 +140,8 @@ const dataCore = (x, y, z) => dataSdf(x, y, z);
 
 const patternGLSL = DETAIL_GLSL + `
 float mgHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
-float mgLine(float d, float w) { return 1.0 - smoothstep(w * 0.5, w, abs(d)); }
+// 溝の断面：へらで引いたような丸い U 字（中心がいちばん深い）
+float mgLine(float d, float w) { float x = abs(d) / (w * 1.15); return x < 1.0 ? 0.5 + 0.5 * cos(3.14159265 * x) : 0.0; }
 float mgSpiral(vec2 q, float pitch, float rmax) {
   float r = length(q);
   if (r > rmax) return 0.0;
@@ -175,7 +176,7 @@ float patH(vec3 p) {
       float t2 = clamp(dot(P2 - A2, B2 - A2) / dot(B2 - A2, B2 - A2), 0.0, 1.0);
       float dr = length(P2 - A2 - (B2 - A2) * t2);
       hg = max(hg, mgLine(dr - 0.02, 0.006) * step(0.03, e));
-      return -hg * 0.0024;
+      return -hg * 0.005;
     }
     // 後頭部：かぶとのような丸い頭に、点の列のついた筋（中央と左右）と、下のふちの帯
     if (p.z < 0.02 && p.y > 1.12) {
@@ -196,7 +197,7 @@ float patH(vec3 p) {
     if (abs(p.x) > 0.07 && er < 0.075) hg = max(hg, mgLine(fract(er / 0.017 + 0.5) - 0.5, 0.3) * step(0.022, er));
     // 3Dデータの写真から取り出した線も重ねる
     hg = max(hg, headDetail(p) * smoothstep(1.02, 1.06, p.y) * 0.8);
-    if (p.y > 1.02) return -hg * 0.0022 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
+    if (p.y > 1.02) return -hg * 0.005 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
     g = max(g, hg);
   }
   // 背中：一対の渦巻とななめの線
@@ -205,10 +206,10 @@ float patH(vec3 p) {
     b = max(b, mgSpiral(vec2(p.x + 0.06, p.y - 0.85), 0.016, 0.055));
     b = max(b, mgSpiral(vec2(p.x - 0.07, p.y - 0.7), 0.016, 0.055));
     for (int i = 0; i < 3; i++) b = max(b, mgLine(p.y - 0.78 - float(i) * 0.025 - p.x * 0.45, 0.007) * step(abs(p.x), 0.2));
-    return -b * 0.0022;
+    return -b * 0.005;
   }
   // 点の列（刺突文）：線のすぐ横に小さな丸い穴が並ぶ
-  #define DOTS(dist, along) (1.0 - smoothstep(0.0028, 0.0045, length(vec2(dist, fract((along) / 0.011) * 0.011 - 0.0055))))
+  #define DOTS(dist, along) mgLine(length(vec2(dist, fract((along) / 0.011) * 0.011 - 0.0055)), 0.0042)
   if (p.z > 0.0) {
     // お腹の同心円（中心に小さな穴）
     float r = length(vec2(p.x, (p.y - 0.70) * 1.05));
@@ -248,14 +249,14 @@ float patH(vec3 p) {
     g = max(g, mgLine(sin(a * 45.0 + p.y * 160.0) * 0.012, 0.006) * step(abs(p.y - 0.585), 0.018));
     g = max(g, mgLine(abs(p.y - 0.585) - 0.022, 0.006));
   }
-  return -g * 0.0022 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
+  return -g * 0.005 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
 }
 vec3 patC(vec3 p, float h) {
   vec3 c = vec3(1.0);
   // 黒く焼けたむらと、茶色いところ
   float n = sin(p.x * 9.0 + 3.0 * sin(p.y * 6.0)) * sin(p.y * 11.0 + p.z * 7.0 + 1.3);
   c *= mix(vec3(0.82), vec3(1.3, 1.15, 1.0), smoothstep(0.2, 0.8, n));
-  c *= 1.0 - clamp(-h / 0.0018, 0.0, 1.0) * 0.5;   // 溝は影で暗く
+  c *= 1.0 - pow(clamp(-h / 0.005, 0.0, 1.0), 0.7) * 0.55;   // 溝の奥は光が届かず暗い
   return c;
 }
 `;
@@ -279,7 +280,7 @@ export const megami = {
   clearRadius: 0.75,
   height: 1.38,
   patternGLSL,
-  bumpStrength: 1.0,
+  bumpStrength: 1.6,
   clayColor: [0.3, 0.235, 0.18],
   innerColor: [0.28, 0.22, 0.16],
   fractureColor: [0.62, 0.47, 0.34],
