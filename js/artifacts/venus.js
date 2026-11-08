@@ -33,13 +33,13 @@ function cap(x, y, z, ax, ay, az, bx, by, bz, r) {
 // 胴体の主な部分（ここから内側を空洞にする）
 function core(x, y, z) {
   const ax = Math.abs(x);
-  let d = cap(ax, y, z, 0.12, 0.06, 0.0, 0.125, 0.3, 0.0, 0.088);           // 円柱のような脚
-  d = smin(d, ell(ax, y, z, 0.13, 0.46, -0.01, 0.15, 0.16, 0.15), 0.05);    // 左右に張った腰・太もも
+  let d = cap(ax, y, z, 0.105, 0.06, 0.0, 0.11, 0.26, 0.0, 0.1);            // 太く短い脚（左右がほぼくっつく）
+  d = smin(d, ell(ax, y, z, 0.14, 0.43, -0.01, 0.16, 0.17, 0.155), 0.05);   // 左右に大きく張った腰・太もも
   d = smin(d, ell(x, y, z, 0, 0.5, -0.05, 0.2, 0.16, 0.17), 0.05);          // 腰の中心
   d = smin(d, ell(x, y, z, 0, 0.6, 0.06, 0.155, 0.17, 0.15), 0.06);         // 大きなお腹
   d = smin(d, ell(x, y, z, 0, 0.78, 0, 0.12, 0.08, 0.1), 0.06);             // くびれ
   d = smin(d, ell(x, y, z, 0, 0.9, 0, 0.15, 0.08, 0.1), 0.05);              // 胸
-  d = smin(d, ecyl(x, y, z, 1.25, 0.168, 0.14, 0.15, -0.025, 0.03), 0.03);    // 頭（ボンネットのような円筒）
+  d = smin(d, ecyl(x, y, z, 1.25, 0.19, 0.155, 0.15, -0.025, 0.055), 0.03);   // 頭（上の角が丸い帽子）
   d = Math.max(d, y - (1.36 - 0.3 * z));                                        // 頭の上は平らで、後ろが少し高い
   return d;
 }
@@ -47,26 +47,36 @@ function core(x, y, z) {
 function sdf(x, y, z) {
   const ax = Math.abs(x);
   let d = core(x, y, z);
-  d = smin(d, ell(ax, y, z, 0.12, 0.03, 0.01, 0.092, 0.035, 0.1), 0.02);    // 足の裏
+  d = smin(d, ell(ax, y, z, 0.105, 0.03, 0.01, 0.1, 0.035, 0.105), 0.02);   // 足の裏
   d = smin(d, ell(ax, y, z, 0.08, 0.48, -0.14, 0.12, 0.13, 0.1), 0.05);     // 張り出したお尻
   d = smin(d, ell(ax, y, z, 0.17, 0.935, 0, 0.08, 0.042, 0.055), 0.04);     // 短い腕
   d = smin(d, ell(ax, y, z, 0.055, 0.88, 0.085, 0.03, 0.03, 0.026), 0.02);  // 乳房
   d = Math.max(d, -ell(x, y, z, 0, 0.62, 0.21, 0.012, 0.016, 0.02));       // へそ
   d = smin(d, cap(x, y, z, 0, 0.93, 0, 0, 1.08, 0.0, 0.072), 0.05);           // 首
-  // 頭の正面の下側をくりぬき、そこに顔をはめこむ（帽子のつばのようになる）
-  d = Math.max(d, -ell(x, y, z, 0, 1.12, 0.2, 0.108, 0.13, 0.14));          // 顔の入る正面の開き
+  // 帽子の正面は、つばの下を大きく開ける。顔はつばより奥にある
+  {
+    const qx = Math.abs(x) - 0.125 + 0.04, qy = Math.abs(y - 1.11) - 0.135 + 0.04, qz = Math.abs(z - 0.17) - 0.16 + 0.04;
+    const open = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.04;
+    d = Math.max(d, -open);
+  }
   // 顔：小さなハート形、つり上がった切れ長の目、とがった鼻、口
   // ハート形の平たい顔（上が左右にふくらみ、あごがとがる）
   const h2 = Math.min(
-    Math.hypot(ax - 0.043, y - 1.195) - 0.05,
-    taper2d(x, y, 0, 1.17, 0, 1.098, 0.07, 0.026),
+    Math.hypot(ax - 0.03, y - 1.185) - 0.055,
+    taper2d(x, y, 0, 1.16, 0, 1.105, 0.072, 0.04),
   );
-  const zf = 0.15 - 1.8 * x * x;                      // 正面はゆるやかにふくらむ
+  const zf = 0.11 - 1.8 * x * x;                      // 正面はゆるやかにふくらむ
   const dz = Math.max(z - zf, 0.02 - z);
   let face = Math.hypot(Math.max(h2, 0), Math.max(dz, 0)) + Math.min(Math.max(h2, dz), 0) - 0.006;
-  face = smin(face, ell(x, y, z, 0, 1.165, zf + 0.002, 0.012, 0.015, 0.016), 0.006);                // 小さな鼻
+  face = smin(face, cap(x, y, z, 0, 1.19, zf - 0.005, 0, 1.162, zf + 0.022, 0.012), 0.006);        // とがった鼻
   face = Math.max(face, -cap(ax, y, z, 0.02, 1.178, zf + 0.004, 0.064, 1.2, zf - 0.004, 0.0065));  // つり目
   face = Math.max(face, -ell(x, y, z, 0, 1.112, zf, 0.01, 0.009, 0.02));                          // 口
+  // 顔のまわり（帽子の内側）をふさぐ壁
+  {
+    const qx = Math.abs(x) - 0.14, qy = Math.abs(y - 1.18) - 0.075, qz = Math.abs(z + 0.005) - 0.06;
+    const wall = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.01;
+    d = smin(d, wall, 0.02);
+  }
   d = smin(d, face, 0.015);
   // 耳の穴
   d = Math.max(d, -ell(ax, y, z, 0.16, 1.21, -0.02, 0.02, 0.012, 0.012));
@@ -87,7 +97,7 @@ float vnSpiral(vec2 q, float pitch, float rmax) {
 float patH(vec3 p) {
   float h = 0.0;
   // 顔：つり上がった切れ長の目と口（細い溝）
-  if (p.z > 0.07 && p.y > 1.09 && p.y < 1.23) {
+  if (p.z > 0.03 && abs(p.x) < 0.08 && p.y > 1.09 && p.y < 1.23) {
     vec2 a = vec2(0.018, 1.177), b = vec2(0.066, 1.199);
     vec2 q = vec2(abs(p.x), p.y);
     float t = clamp(dot(q - a, b - a) / dot(b - a, b - a), 0.0, 1.0);
@@ -142,7 +152,7 @@ export const venus = {
   core,
   thickness: 0.055,
   voxel: 0.0135,
-  bounds: { min: [-0.32, -0.02, -0.28], max: [0.32, 1.43, 0.25] },
+  bounds: { min: [-0.34, -0.02, -0.3], max: [0.34, 1.43, 0.27] },
   height: 1.36,
   patternGLSL,
   bumpStrength: 1.0,
