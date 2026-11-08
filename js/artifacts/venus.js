@@ -32,7 +32,7 @@ function cap(x, y, z, ax, ay, az, bx, by, bz, r) {
 
 // 胴体の主な部分（ここから内側を空洞にする）
 const HZ = 0.06;                              // 頭は首より少し前に出る
-const TOP = (zh) => 1.335 + 0.22 * zh;         // 帽子の上の面（前が高く、後ろが低い）
+const TOP = (zh) => 1.295 + 0.22 * zh;         // 帽子の上の面（前が高く、後ろが低い）
 // 胴の輪郭（正面の半幅 w・奥行きの半分 d・前後の中心 zc）を高さごとに
 const PROF = [
   [0.2, 0.2, 0.15, -0.015],
@@ -65,9 +65,9 @@ function procCore(x, y, z) {
   d = smin(d, torso(x, y, z), 0.04);
   d = smin(d, ell(ax, y, z, 0.12, 0.37, 0.035, 0.14, 0.13, 0.15), 0.05);   // 前にふくらむ太もも
   d = smin(d, ell(ax, y, z, 0.08, 0.42, -0.12, 0.13, 0.15, 0.12), 0.06);   // 後ろへ張り出したお尻
-  d = smin(d, ecyl(x, y, zh, 1.235, 0.2, 0.18, 0.135, -0.03, 0.05), 0.03);  // 帽子（3Dデータの幅・奥行きに合わせる）
+  d = smin(d, ecyl(x, y, zh, 1.225, 0.185, 0.175, 0.125, -0.03, 0.05), 0.03);  // 帽子（3Dデータの幅・奥行きに合わせる）
   d = Math.max(d, y - TOP(zh));
-  d = Math.max(d, -ell(x, y, zh, 0, 1.19, 0.17, 0.14, 0.135, 0.17));       // 正面の丸いくぼみ（内側の壁もそれに沿う）
+  d = Math.max(d, -ell(x, y, zh, 0, 1.15, 0.17, 0.118, 0.145, 0.17));       // 正面の丸いくぼみ（内側の壁もそれに沿う）
   return d;
 }
 
@@ -84,12 +84,16 @@ function procSdf(x, y, z) {
   d = Math.max(d, -ell(x, y, z, 0, 0.53, 0.21, 0.012, 0.012, 0.03));
   // 太ももの間のみぞ（お腹の下）
   d = Math.max(d, -Math.max(ax - 0.006, Math.abs(y - 0.4) - 0.1, 0.12 - z)); // 前側だけ浅く
-  // 帽子の正面を丸くくぼませる（つばが顔のまわりを丸く囲む）
-  d = Math.max(d, -ell(x, y, zh, 0, 1.19, 0.17, 0.14, 0.135, 0.17));
+  // 帽子の正面を、顔をかこむアーチ形にくぼませ、ふちを少し盛り上げる（写真のつば）
+  {
+    const open = Math.max(ell(x, y, zh, 0, 1.15, 0.17, 0.118, 0.145, 0.17), 1.09 - y);
+    d = Math.max(d, -open);
+    if (zh > 0.08 && y > 1.1) d = smin(d, Math.max(Math.abs(open + 0.012) - 0.011, Math.abs(zh - 0.14) - 0.03, 1.1 - y), 0.01);
+  }
   {
   // 顔は大きく、帽子のつばより前にせり出す（元の形を FS 倍に拡大して前へ）
-  const FS = 1.28;
-  const fx = x / FS, fy = 1.19 + (y - 1.19) / FS, fz = 0.05 + (zh - 0.05 - 0.05) / FS;
+  const FS = 1.05;
+  const fx = x / FS, fy = 1.19 + (y - 1.19) / FS, fz = 0.05 + (zh - 0.05 - 0.035) / FS;
   const fax = Math.abs(fx);
   // 顔：丸みをおびて前にせり出したハート形（上が左右にふくらみ、あごが少しとがる）
   let face = ell(fax, fy, fz, 0.036, 1.215, 0.05, 0.072, 0.066, 0.11);
@@ -101,7 +105,7 @@ function procSdf(x, y, z) {
     const t = clamp((px * vx + py * vy) / (vx * vx + vy * vy), 0, 1);
     return Math.max(Math.hypot(px - vx * t, py - vy * t) - r, 0.11 - fz);
   };
-  face = Math.max(face, -slit(0.022, 1.203, 0.066, 1.225, 0.0075));
+  // 目は表面の細い溝として描く（下の patternGLSL）
   face = Math.max(face, -slit(0, 1.142, 0, 1.144, 0.009));
   d = smin(d, face * FS, 0.014);
   }
@@ -120,7 +124,7 @@ function procSdf(x, y, z) {
       const groove = Math.max(ds - 0.0095, top - 0.016 - y, r - 0.17);
       d = Math.max(d, -groove);
     }
-    d = Math.max(d, -Math.max(r - 0.022, top - 0.06 - y));
+    d = Math.max(d, -Math.max(r - 0.02, top - 0.03 - y));
   }
   return Math.max(d, -y);
 }
@@ -193,15 +197,23 @@ float vnSpiral(vec2 q, float pitch, float rmax) {
 }
 float patH(vec3 p) {
   float h = 0.0;
+  // 顔：つり上がった細い目（溝）
+  if (p.z > 0.1 && abs(p.x) < 0.09 && p.y > 1.15 && p.y < 1.26) {
+    vec2 a = vec2(0.022, 1.203), b = vec2(0.07, 1.226);
+    vec2 q = vec2(abs(p.x), p.y);
+    float t = clamp(dot(q - a, b - a) / dot(b - a, b - a), 0.0, 1.0);
+    float de = length(q - a - (b - a) * t);
+    h -= (1.0 - smoothstep(0.0035, 0.0065 - t * 0.0025, de)) * 3.0;
+  }
   // 顔：つり上がった切れ長の目と口（細い溝）
   // 頭頂：大きな渦巻ひとつ
-  if (p.y > 1.31 + 0.22 * (p.z - 0.045)) {
+  if (p.y > 1.27 + 0.22 * (p.z - 0.06)) {
     vec2 q = vec2(p.x, (p.z - 0.045 + 0.02) * 1.1);
     h -= vnSpiral(q, 0.038, 0.145) * 1.5;   // 形の溝と同じ位置をくっきりさせる
   }
   // 頭の側面〜後ろの帯：上下の沈線と、左右一対の渦巻
   if (p.y > 1.16 && p.y < 1.4 && p.z < 0.06) {
-    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - (1.31 + 0.22 * (p.z - 0.045))));
+    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - (1.27 + 0.22 * (p.z - 0.06))));
     h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - 1.17));
     // 写真：帽子の側面、耳の後ろ上に渦巻。そのまわりを前から後ろへ回りこむ弧の線
     if (abs(p.x) > 0.1) {
@@ -228,6 +240,9 @@ vec3 patC(vec3 p, float h) {
   float n1 = sin(p.x * 13.0 + 3.0 * sin(p.y * 9.0 + p.z * 7.0)) * sin(p.y * 11.0 + p.z * 15.0 + 1.7);
   float n2 = vnHash(floor(p * 45.0)) - 0.5;
   vec3 c = vec3(1.0) * (0.95 + 0.07 * n1 + 0.05 * n2);
+  // 写真：表面に細かい黒っぽい斑点（焼きむら・小さなくぼみ）
+  float sp = vnHash(floor(p * 320.0));
+  if (sp > 0.95) c *= 0.75;
   float soot = smoothstep(0.7, 0.95, n1 * 0.8 + sin(p.x * 31.0 + p.y * 23.0) * 0.3);
   c = mix(c, vec3(0.72, 0.68, 0.7), soot * 0.5);
   // 粘土にまじる雲母のきらめきと白い砂粒
@@ -256,9 +271,9 @@ export const venus = {
   height: 1.36,
   patternGLSL,
   bumpStrength: 1.0,
-  clayColor: [0.8, 0.47, 0.31],
-  innerColor: [0.48, 0.3, 0.21],
-  fractureColor: [0.8, 0.58, 0.42],
+  clayColor: [0.58, 0.33, 0.21],
+  innerColor: [0.36, 0.21, 0.14],
+  fractureColor: [0.68, 0.45, 0.31],
   description: [
     '縄文のビーナスは、1986年に長野県茅野市の棚畑（たなばたけ）遺跡で見つかった、縄文時代中期（約5,000年前）の土偶です。高さは27cmあり、ほぼ完全な形のまま、集落の中央の広場の穴に横たえられた状態で出土しました。',
     'ハート形の顔に切れ長のつり上がった目、平らな頭の上には渦巻の文様があります。ふくらんだお腹と大きく張り出したお尻は、子どもを宿した女性の姿を表していると考えられています。表面はていねいに磨かれ、粘土に混じった雲母がきらきらと光ります。',
