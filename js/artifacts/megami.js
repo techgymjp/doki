@@ -84,17 +84,22 @@ function procSdf(x, y, z) {
 }
 
 // 形はご提供の3Dデータ（写真から作った立体）をなめらかにしたものを使う
-import { loadSdfGrid } from './sdfdata.js';
+import { loadSdfGrid, loadDetailTexture, makeDetailUniforms, DETAIL_GLSL } from './sdfdata.js';
+const detailUniforms = makeDetailUniforms();
 let dataSdf = null;
 async function prepare() {
   if (!dataSdf) dataSdf = await loadSdfGrid('megami');
+  if (!detailUniforms.uDetail.value) await loadDetailTexture('megami', detailUniforms);
 }
 function sdf(x, y, z) {
-  return Math.max(dataSdf(x, y, z), -y);
+  let d = dataSdf(x, y, z);
+  // 頭の横の耳の穴（写真）
+  if (y > 1.05 && y < 1.15) d = Math.max(d, -Math.max(Math.hypot(y - 1.1, z + 0.04) - 0.017, 0.07 - Math.abs(x)));
+  return Math.max(d, -y);
 }
 const dataCore = (x, y, z) => dataSdf(x, y, z);
 
-const patternGLSL = `
+const patternGLSL = DETAIL_GLSL + `
 float mgHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float mgLine(float d, float w) { return 1.0 - smoothstep(w * 0.5, w, abs(d)); }
 float mgSpiral(vec2 q, float pitch, float rmax) {
@@ -106,25 +111,53 @@ float mgSpiral(vec2 q, float pitch, float rmax) {
 float patH(vec3 p) {
   float ax = abs(p.x);
   float g = 0.0;
-  // 仮面：ふちの盛り上がり・鼻すじ・目
-  float c = cos(-0.55), s = sin(-0.55);
-  float dy = p.y - 1.19, dz = p.z - 0.12;
-  vec2 m = vec2(p.x, dy * c + dz * s);
-  float w = -dy * s + dz * c;
-  if (w > 0.02 && m.y > -0.19 && m.y < 0.18) {
-    float edge = max(m.y - 0.13, (abs(m.x) * 0.33 / 0.205 - (m.y + 0.17) * 1.0) * 0.6);
-    float rim = mgLine(edge + 0.012, 0.012);
-    float nose = mgLine(m.x, 0.012) * step(-0.09, m.y) * step(m.y, 0.08);
-    float eye = 1.0 - smoothstep(0.005, 0.009, length(vec2(ax - 0.06, m.y - 0.05)));
-    float brow = mgLine(m.y - 0.085 - ax * 0.25, 0.007) * step(ax, 0.12);
-    return (rim * 0.8 + nose * 0.8 - eye * 1.5 - brow) * 0.0012;
-  }
-  // 頭の後ろ：筋の上の点の列と、帽子のふちのような線
-  if (p.y > 1.07 && p.z < 0.03 && w < 0.0) {
-    float hh = 0.0;
-    if (abs(p.x) < 0.02) hh = -(1.0 - smoothstep(0.004, 0.007, length(vec2(p.x, fract(length(p.yz - vec2(1.13, -0.118)) / 0.022) * 0.022 - 0.011))));
-    hh = min(hh, -mgLine(p.y - 1.1 + p.z * 0.4, 0.008));
-    return hh * 0.0012;
+  // ---- 頭部（写真をもとに、3Dデータの形の上に刻む）----
+  if (p.y > 0.98) {
+    float hg = 0.0;
+    // 仮面：面の座標（3Dデータの仮面の面に合わせた向き）
+    vec3 mc = vec3(0.0, 1.22, 0.05);
+    vec3 mn = normalize(vec3(0.015, 0.694, 0.72));
+    vec3 mt = normalize(vec3(0.0, 0.72, -0.694));
+    vec3 q = p - mc;
+    float mu = q.x, mv = dot(q, mt), mw = dot(q, mn);
+    // 逆三角形の3辺からの距離（内側が正）
+    vec2 P = vec2(mu, mv);
+    float eTop = 0.1 - mv;
+    float eL = dot(P - vec2(-0.2, 0.1), normalize(vec2(0.335, 0.2)));
+    float eR = dot(P - vec2(0.2, 0.1), normalize(vec2(-0.335, 0.2)));
+    bool onMask = mw > -0.03 && min(eTop, min(eL, eR)) > -0.004;
+    if (onMask) {
+      float e = min(eTop, min(eL, eR));
+      // 3辺にそった2本の溝（V字の線）
+      hg = max(hg, mgLine(e - 0.022, 0.009));
+      hg = max(hg, mgLine(e - 0.042, 0.007));
+      // 小さな目の穴・鼻の穴・口
+      hg = max(hg, 1.0 - smoothstep(0.006, 0.01, length(vec2(abs(mu) - 0.055, mv - 0.02))));
+      hg = max(hg, (1.0 - smoothstep(0.003, 0.006, length(vec2(abs(mu) - 0.012, mv + 0.09)))) * 0.8);
+      hg = max(hg, 1.0 - smoothstep(0.005, 0.009, length(vec2(mu, mv + 0.165))));
+      return -hg * 0.0024;
+    }
+    // 後頭部：かぶとのような丸い頭に、点の列のついた筋（中央と左右）と、下のふちの帯
+    if (p.z < 0.02 && p.y > 1.12) {
+      float ang = atan(p.x, -(p.z + 0.06));
+      for (int i = -1; i <= 1; i++) {
+        float a0 = float(i) * 0.75;
+        float d = abs(ang - a0) * length(vec2(p.x, p.z + 0.06));
+        float line = mgLine(d, 0.009);
+        float dots = 1.0 - smoothstep(0.0025, 0.0045, length(vec2(d - 0.009, fract(p.y / 0.014) * 0.014 - 0.007)));
+        hg = max(hg, max(line, dots));
+      }
+      float band = abs(p.y - 1.165 - 0.12 * max(p.z + 0.02, 0.0));
+      hg = max(hg, mgLine(band, 0.009));
+      hg = max(hg, 1.0 - smoothstep(0.0025, 0.0045, length(vec2(band - 0.011, fract(atan(p.x, p.z + 0.04) * 40.0 / 6.2831853) * 0.012 - 0.006))));
+    }
+    // 耳の穴のまわりの同心円（頭の横）
+    float er = length(vec2(p.y - 1.1, p.z + 0.04));
+    if (abs(p.x) > 0.07 && er < 0.075) hg = max(hg, mgLine(fract(er / 0.017 + 0.5) - 0.5, 0.3) * step(0.022, er));
+    // 3Dデータの写真から取り出した線も重ねる
+    hg = max(hg, headDetail(p) * smoothstep(1.02, 1.06, p.y) * 0.8);
+    if (p.y > 1.02) return -hg * 0.0022 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
+    g = max(g, hg);
   }
   // 背中：一対の渦巻とななめの線
   if (p.z < -0.05 && p.y > 0.62 && p.y < 0.95) {
@@ -132,7 +165,7 @@ float patH(vec3 p) {
     b = max(b, mgSpiral(vec2(p.x + 0.06, p.y - 0.85), 0.016, 0.055));
     b = max(b, mgSpiral(vec2(p.x - 0.07, p.y - 0.7), 0.016, 0.055));
     for (int i = 0; i < 3; i++) b = max(b, mgLine(p.y - 0.78 - float(i) * 0.025 - p.x * 0.45, 0.007) * step(abs(p.x), 0.2));
-    return -b * 0.0013;
+    return -b * 0.0022;
   }
   if (p.z > 0.0) {
     // お腹の同心円
@@ -153,14 +186,14 @@ float patH(vec3 p) {
   }
   // 腰の帯：刻み
   if (abs(p.y - 0.585) < 0.03) g = max(g, mgLine(sin(atan(p.x, p.z) * 60.0) * 0.012, 0.006));
-  return -g * 0.0013 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
+  return -g * 0.0022 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
 }
 vec3 patC(vec3 p, float h) {
   vec3 c = vec3(1.0);
   // 黒く焼けたむらと、茶色いところ
   float n = sin(p.x * 9.0 + 3.0 * sin(p.y * 6.0)) * sin(p.y * 11.0 + p.z * 7.0 + 1.3);
   c *= mix(vec3(0.82), vec3(1.3, 1.15, 1.0), smoothstep(0.2, 0.8, n));
-  c *= 1.0 + clamp(-h / 0.0013, 0.0, 1.0) * 0.55;
+  c *= 1.0 - clamp(-h / 0.0018, 0.0, 1.0) * 0.5;   // 溝は影で暗く
   return c;
 }
 `;
@@ -175,6 +208,7 @@ export const megami = {
   place: '長野県茅野市・中ッ原遺跡',
   available: true,
   prepare,
+  patternUniforms: detailUniforms,
   sdf,
   core: dataCore,
   thickness: 0.045,

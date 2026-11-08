@@ -133,25 +133,13 @@ function procSdf(x, y, z) {
 // ---- 体の形はご提供の3Dデータ（実物の写真から作られたもの）を使う ----
 //   data/venus-sdf.json / .bin : 3Dデータを距離の格子に変換したもの（Int8）
 //   首から上（帽子・顔・渦巻）は、細部をはっきりさせるため形を作り込んだものにつなぐ
-import * as THREE from 'three';
-import { loadSdfGrid } from './sdfdata.js';
+import { loadSdfGrid, loadDetailTexture, makeDetailUniforms, DETAIL_GLSL } from './sdfdata.js';
 let dataSdf = null;
 // 顔・帽子の文様：3Dデータの写真の色から、暗い線（目・口・渦巻・沈線）を取り出した立体の地図
-const detailUniforms = { uDetail: { value: null }, uDetMin: { value: new THREE.Vector3() }, uDetSize: { value: new THREE.Vector3() } };
+const detailUniforms = makeDetailUniforms();
 async function prepare() {
   if (!dataSdf) dataSdf = await loadSdfGrid('venus');
-  if (!detailUniforms.uDetail.value) {
-    const base = new URL('./data/', import.meta.url);
-    const h = await (await fetch(new URL('venus-head-detail.json', base))).json();
-    const buf = new Uint8Array(await (await fetch(new URL('venus-head-detail.bin', base))).arrayBuffer());
-    const [nx, ny, nz] = h.dims;
-    const t = new THREE.Data3DTexture(buf, nx, ny, nz);
-    t.format = THREE.RedFormat; t.type = THREE.UnsignedByteType;
-    t.minFilter = t.magFilter = THREE.LinearFilter; t.unpackAlignment = 1; t.needsUpdate = true;
-    detailUniforms.uDetail.value = t;
-    detailUniforms.uDetMin.value.set(h.min[0] - h.voxel / 2, h.min[1] - h.voxel / 2, h.min[2] - h.voxel / 2);
-    detailUniforms.uDetSize.value.set(nx * h.voxel, ny * h.voxel, nz * h.voxel);
-  }
+  if (!detailUniforms.uDetail.value) await loadDetailTexture('venus', detailUniforms);
 }
 // 両足：3Dデータでは左右がくっついているので、データの太さ・奥行きに合わせて2本に分けて作り直す
 function legs(x, y, z) {
@@ -194,7 +182,7 @@ function core(x, y, z) {
 }
 
 // 外面：よく磨かれた肌と、きらきら光る雲母、頭頂の渦巻文
-const patternGLSL = `
+const patternGLSL = DETAIL_GLSL + `
 float vnHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float vnSpiral(vec2 q, float pitch, float rmax) {
   float r = length(q);
@@ -204,17 +192,9 @@ float vnSpiral(vec2 q, float pitch, float rmax) {
   float d = abs(t - floor(t + 0.5)) * pitch;
   return 1.0 - smoothstep(0.004, 0.008, d);
 }
-uniform highp sampler3D uDetail;
-uniform vec3 uDetMin;
-uniform vec3 uDetSize;
-float headDetail(vec3 p) {
-  vec3 q = (p - uDetMin) / uDetSize;
-  if (any(lessThan(q, vec3(0.0))) || any(greaterThan(q, vec3(1.0)))) return 0.0;
-  return texture(uDetail, q).r * smoothstep(1.07, 1.11, p.y);
-}
 float patH(vec3 p) {
   // 顔・帽子：3Dデータの暗い線を溝として刻む
-  float h = -headDetail(p) * 3.5;
+  float h = -headDetail(p) * smoothstep(1.07, 1.11, p.y) * 3.5;
   // 磨いた面のわずかなむら
   h += 0.15 * (vnHash(floor(p * 90.0)) - 0.5);
   return h * 0.0011;

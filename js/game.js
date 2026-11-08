@@ -470,6 +470,8 @@ export class Game {
   // それ以外は、すでにはまったピースと接しているものだけ
   _placeable(p) {
     if (p.grounded) return true;
+    // どのピースともつながらない離れた欠片は、いつでも置ける（手詰まり防止）
+    if (!p.adj || p.adj.size === 0) return true;
     for (const a of p.adj) if (this.pieces[a].placed) return true;
     return false;
   }
