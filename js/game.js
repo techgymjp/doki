@@ -9,11 +9,11 @@ const ease = (t) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 // ステージが進むほど難しくする（難易度は選ばせない）
-//   level 1→6 で、はまる判定がきびしくなり、完成形のガイドがうすく→最初は非表示になる
+//   level が上がるほど、はまる判定がきびしくなり、完成形のガイドがうすく→最初は非表示になる
 export function levelSettings(level = 1) {
-  const lv = Math.max(1, Math.min(6, level));
+  const lv = Math.max(1, Math.min(10, level));
   return {
-    snap: 0.16 - 0.012 * (lv - 1),
+    snap: Math.max(0.08, 0.16 - 0.012 * (lv - 1)),
     ghost: lv <= 5,
     ghostStrength: lv <= 3 ? 1 : 0.5,
     slotHint: false,

@@ -78,7 +78,8 @@ function renderList() {
     ui.list.appendChild(b);
   });
   const cur = STAGES[stageIndex];
-  const stars = '★'.repeat(cur.level || 1) + '☆'.repeat(6 - (cur.level || 1));
+  const maxLv = Math.max(...STAGES.map((st) => st.level || 1));
+  const stars = '★'.repeat(cur.level || 1) + '☆'.repeat(maxLv - (cur.level || 1));
   ui.info.innerHTML = `<ruby>${cur.name}<rt>${cur.ruby}</rt></ruby><span>${cur.era}｜${cur.place}</span><span class="level">難易度 ${stars}｜${cur.pieces}ピース</span>`;
 }
 
