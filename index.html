@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>復元せよ 土器・土偶・埴輪</title>
+<meta name="description" content="こなごなになった縄文土器を3Dで組み立てて復元するパズルゲーム">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="stage"></div>
+
+<!-- タイトル（スタート前は完成した姿を見せる） -->
+<section id="title" class="panel">
+  <header class="logo">
+    <h1>復元せよ</h1>
+    <p class="sub">土器・土偶・埴輪</p>
+  </header>
+  <div class="title-bottom">
+    <div id="artifact-list" class="artifact-list"></div>
+    <div id="artifact-info" class="artifact-info"></div>
+    <button id="start-btn" class="primary" disabled>読み込み中…</button>
+    <p class="tip">ドラッグ・フリックで回して、じっくり観察しよう</p>
+  </div>
+</section>
+
+<!-- プレイ中の表示 -->
+<section id="hud" hidden>
+  <div class="hud-top">
+    <div class="hud-name"><span id="hud-kind"></span><strong id="hud-title"></strong></div>
+    <div class="hud-stats">
+      <span class="stat"><em>ピース</em><b id="hud-count">0 / 0</b></span>
+      <span class="stat"><em>時間</em><b id="hud-time">0:00</b></span>
+    </div>
+  </div>
+  <div class="hud-buttons">
+    <button id="btn-hint" title="次にはめるピースを光らせる">ヒント</button>
+    <button id="btn-ghost" title="完成形のガイドを表示">ガイド</button>
+    <button id="btn-view" title="視点をもとに戻す">視点</button>
+    <button id="btn-sound" title="効果音">音 ON</button>
+    <button id="btn-menu" title="タイトルにもどる">メニュー</button>
+  </div>
+  <p id="hud-help" class="hud-help">ピースをドラッグして、正しい位置に近づけると<b>ピタッ</b>とはまります。底から順に組み上げよう。<br>何もないところをフリックすると回転・上からも見られます。</p>
+</section>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- 完成 -->
+<section id="result" class="modal" hidden>
+  <div class="card">
+    <p class="result-label">復元完了</p>
+    <h2 id="result-title"></h2>
+    <p id="result-era" class="era"></p>
+    <div class="result-stats">
+      <div><em>タイム</em><b id="result-time"></b></div>
+      <div><em>ピース</em><b id="result-pieces"></b></div>
+      <div><em>ヒント</em><b id="result-hints"></b></div>
+    </div>
+    <div id="result-desc" class="desc"></div>
+    <div class="result-actions">
+      <button id="btn-next" class="primary">次のステージへ</button>
+      <button id="btn-again">もう一度</button>
+      <button id="btn-view-pot">ながめる</button>
+      <button id="btn-title">タイトルへ</button>
+    </div>
+  </div>
+</section>
+
+<div id="loading" class="loading">
+  <div class="loading-inner">
+    <div class="spinner"></div>
+    <p>出土品を準備しています…</p>
+    <div class="bar"><span id="load-bar"></span></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
