@@ -65,7 +65,7 @@ function procCore(x, y, z) {
   d = smin(d, torso(x, y, z), 0.04);
   d = smin(d, ell(ax, y, z, 0.12, 0.37, 0.035, 0.14, 0.13, 0.15), 0.05);   // 前にふくらむ太もも
   d = smin(d, ell(ax, y, z, 0.08, 0.42, -0.12, 0.13, 0.15, 0.12), 0.06);   // 後ろへ張り出したお尻
-  d = smin(d, ecyl(x, y, zh, 1.24, 0.175, 0.145, 0.13, -0.02, 0.05), 0.03);  // 帽子
+  d = smin(d, ecyl(x, y, zh, 1.24, 0.18, 0.165, 0.13, -0.03, 0.05), 0.03);  // 帽子（3Dデータの幅・奥行きに合わせる）
   d = Math.max(d, y - TOP(zh));
   d = Math.max(d, -ell(x, y, zh, 0, 1.2, 0.17, 0.118, 0.118, 0.15));       // 正面の丸いくぼみ（内側の壁もそれに沿う）
   return d;
@@ -128,24 +128,50 @@ let dataSdf = null;
 async function prepare() {
   if (!dataSdf) dataSdf = await loadSdfGrid('venus');
 }
+// 両足：3Dデータでは左右がくっついているので、データの太さ・奥行きに合わせて2本に分けて作り直す
+function legs(x, y, z) {
+  const ax = Math.abs(x), t = clamp(y / 0.24, 0, 1);
+  const rx = 0.124 - 0.01 * t, rz = 0.165 - 0.015 * t;
+  const e = (Math.hypot((ax - 0.134) / rx, (z - 0.015) / rz) - 1) * Math.min(rx, rz);
+  return e;
+}
+function body(x, y, z) {
+  if (y > 0.31) return dataSdf(x, y, z);
+  const t = clamp((y - 0.2) / 0.11, 0, 1), s = t * t * (3 - 2 * t);
+  let d = legs(x, y, z) * (1 - s) + dataSdf(x, y, z) * s;
+  // 脚の付け根まで左右を分ける
+  const gap = 0.013 * (1 - s);
+  if (gap > 0) d = Math.max(d, gap - Math.abs(x));
+  return d;
+}
 const mixHead = (y) => { const t = clamp((y - 1.0) / 0.08, 0, 1); return t * t * (3 - 2 * t); };
 function sdf(x, y, z) {
   const t = mixHead(y);
   let d;
-  if (t <= 0) d = dataSdf(x, y, z);
+  if (t <= 0) d = body(x, y, z);
   else if (t >= 1) d = procSdf(x, y, z);
-  else d = dataSdf(x, y, z) * (1 - t) + procSdf(x, y, z) * t;
+  else d = body(x, y, z) * (1 - t) + procSdf(x, y, z) * t;
   // 写真から：小さな乳房と、垂れたお腹の先のへその穴
   const ax = Math.abs(x);
   if (y > 0.75 && y < 0.98) d = smin(d, ell(ax, y, z, 0.06, 0.865, 0.118, 0.026, 0.026, 0.024), 0.012);
   if (y > 0.45 && y < 0.62) d = Math.max(d, -ell(x, y, z, 0, 0.545, 0.235, 0.011, 0.011, 0.04));
+  // 写真から：お尻の割れ目、お尻と脚の境目、前の太ももの間のくぼみ（なめらかな溝）
+  const g = (v, w) => Math.exp(-(v / w) * (v / w));
+  if (y > 0.22 && y < 0.5) {
+    const band = (lo, hi) => clamp((y - lo) / 0.03, 0, 1) * clamp((hi - y) / 0.03, 0, 1);
+    if (z < -0.05) {
+      d += 0.016 * g(ax, 0.014) * band(0.24, 0.47);
+      d += 0.012 * g(y - 0.268 - 0.05 * (ax / 0.22) * (ax / 0.22), 0.011) * clamp((0.24 - ax) / 0.04, 0, 1);
+    }
+    if (z > 0.05) d += 0.012 * g(ax, 0.016) * band(0.24, 0.4);
+  }
   return Math.max(d, -y);
 }
 function core(x, y, z) {
   const t = mixHead(y);
-  if (t <= 0) return dataSdf(x, y, z);
+  if (t <= 0) return body(x, y, z);
   if (t >= 1) return procCore(x, y, z);
-  return dataSdf(x, y, z) * (1 - t) + procCore(x, y, z) * t;
+  return body(x, y, z) * (1 - t) + procCore(x, y, z) * t;
 }
 
 // 外面：よく磨かれた肌と、きらきら光る雲母、頭頂の渦巻文
@@ -171,10 +197,13 @@ float patH(vec3 p) {
   if (p.y > 1.16 && p.y < 1.4 && p.z < 0.06) {
     h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - (1.31 + 0.22 * (p.z - 0.045))));
     h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - 1.17));
-    if (p.z < -0.03) {
-      float sx = p.x >= 0.0 ? 1.0 : -1.0;
-      vec2 q = vec2((p.x - sx * 0.12) * sx, p.y - 1.25);
-      h = max(h, vnSpiral(q, 0.02, 0.055));
+    // 写真：帽子の側面、耳の後ろ上に渦巻。そのまわりを前から後ろへ回りこむ弧の線
+    if (abs(p.x) > 0.1) {
+      vec2 q = vec2(p.z + 0.06, p.y - 1.255);
+      if (p.x < 0.0) q.x = -q.x;
+      h = max(h, vnSpiral(q, 0.019, 0.05));
+      float arc = abs(length(vec2(p.z + 0.06, (p.y - 1.255) * 1.3)) - 0.075);
+      h -= (1.0 - smoothstep(0.003, 0.006, arc)) * step(p.y, 1.31);
     }
   }
   // 磨いた面のわずかなむら
@@ -182,15 +211,15 @@ float patH(vec3 p) {
   return h * 0.0011;
 }
 vec3 patC(vec3 p, float h) {
-  // 写真の色：赤みのある素焼きの茶色に、黒っぽいすすのまだら（とくに腰から下）
-  float n1 = sin(p.x * 11.0 + 3.0 * sin(p.y * 7.0 + p.z * 5.0)) * sin(p.y * 9.0 + p.z * 13.0 + 1.7);
-  float n2 = sin(p.x * 27.0 + p.z * 19.0 + 4.0 * sin(p.y * 15.0)) * 0.5;
-  float soot = smoothstep(0.25, 0.8, n1 + n2 + (p.y < 0.55 ? 0.35 : -0.25));
-  vec3 c = mix(vec3(1.0), vec3(0.5, 0.48, 0.5), soot * 0.85);
-  c *= 0.94 + 0.12 * vnHash(floor(p * 60.0));
+  // 写真の色：赤みのある素焼きの茶色がほぼ一様に広がり、ところどころ少し暗い焼きむらがある
+  float n1 = sin(p.x * 13.0 + 3.0 * sin(p.y * 9.0 + p.z * 7.0)) * sin(p.y * 11.0 + p.z * 15.0 + 1.7);
+  float n2 = vnHash(floor(p * 45.0)) - 0.5;
+  vec3 c = vec3(1.0) * (0.95 + 0.07 * n1 + 0.05 * n2);
+  float soot = smoothstep(0.7, 0.95, n1 * 0.8 + sin(p.x * 31.0 + p.y * 23.0) * 0.3);
+  c = mix(c, vec3(0.72, 0.68, 0.7), soot * 0.5);
   // 粘土にまじる雲母のきらめきと白い砂粒
   float s = vnHash(floor(p * 420.0));
-  if (s > 0.994) c *= 2.0; else if (s > 0.986) c *= 1.35;
+  if (s > 0.994) c *= 1.9; else if (s > 0.984) c *= 1.3; else if (s < 0.01) c *= 0.75;
   c *= 1.0 - clamp(-h / 0.0011, 0.0, 1.0) * 0.3;
   return c;
 }
