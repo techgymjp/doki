@@ -91,8 +91,47 @@ async function prepare() {
   if (!dataSdf) dataSdf = await loadSdfGrid('megami');
   if (!detailUniforms.uDetail.value) await loadDetailTexture('megami', detailUniforms);
 }
+// 仮面の面の座標（3Dデータの仮面の面に合わせた向き）
+const MC = [0, 1.22, 0.05];
+const MN = (() => { const v = [0.015, 0.694, 0.72], l = Math.hypot(...v); return v.map((c) => c / l); })();
+const MT = (() => { const v = [0, 0.72, -0.694], l = Math.hypot(...v); return v.map((c) => c / l); })();
+function maskUV(x, y, z) {
+  const q = [x - MC[0], y - MC[1], z - MC[2]];
+  return [q[0], q[0] * MT[0] + q[1] * MT[1] + q[2] * MT[2], q[0] * MN[0] + q[1] * MN[1] + q[2] * MN[2]];
+}
+const seg2 = (px, py, ax, ay, bx, by) => {
+  const vx = bx - ax, vy = by - ay, t = clamp(((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy), 0, 1);
+  return Math.hypot(px - ax - vx * t, py - ay - vy * t);
+};
+// 仮面の写真：ふちが太く盛り上がり、左上の角から下へ一本の隆起（先に丸いこぶ）、角と先に小さな穴
+const MASK_A = [-0.2, 0.1], MASK_B = [0.2, 0.1], MASK_C = [0, -0.232];
+function maskRelief(x, y, z) {
+  const [u, v, w] = maskUV(x, y, z);
+  if (w < -0.06 || w > 0.08 || v < -0.27 || v > 0.14 || Math.abs(u) > 0.24) return 1;
+  const W0 = 0.026; // 仮面の表の面の高さ
+  const ridge = (d, r) => Math.hypot(d, Math.max(w - W0, 0)) - r;
+  // ふち（3辺）
+  let e = Math.min(seg2(u, v, ...MASK_A, ...MASK_B), seg2(u, v, ...MASK_B, ...MASK_C), seg2(u, v, ...MASK_C, ...MASK_A));
+  let d = ridge(e + 0.004, 0.014);
+  // 左上の角から下へのびる隆起と、その先の丸いこぶ
+  d = Math.min(d, Math.hypot(seg2(u, v, -0.135, 0.07, -0.005, -0.14), Math.max(w - 0.03, 0)) - 0.011);
+  d = Math.min(d, Math.hypot(u, v + 0.15, Math.max(w - 0.03, 0)) - 0.024);
+  return d;
+}
+function maskHoles(x, y, z) {
+  const [u, v, w] = maskUV(x, y, z);
+  if (w < -0.08 || w > 0.08) return 1;
+  let h = 1;
+  for (const [hu, hv, r] of [[0.15, 0.072, 0.009], [-0.15, 0.072, 0.009], [0, -0.2, 0.009]]) h = Math.min(h, Math.hypot(u - hu, v - hv) - r);
+  return h;
+}
+
 function sdf(x, y, z) {
   let d = dataSdf(x, y, z);
+  if (y > 1.0) {
+    d = smin(d, maskRelief(x, y, z), 0.006);
+    d = Math.max(d, -maskHoles(x, y, z));
+  }
   // 頭の横の耳の穴（写真）
   if (y > 1.05 && y < 1.15) d = Math.max(d, -Math.max(Math.hypot(y - 1.1, z + 0.04) - 0.017, 0.07 - Math.abs(x)));
   return Math.max(d, -y);
@@ -128,13 +167,14 @@ float patH(vec3 p) {
     bool onMask = mw > -0.03 && min(eTop, min(eL, eR)) > -0.004;
     if (onMask) {
       float e = min(eTop, min(eL, eR));
-      // 3辺にそった2本の溝（V字の線）
-      hg = max(hg, mgLine(e - 0.022, 0.009));
-      hg = max(hg, mgLine(e - 0.042, 0.007));
-      // 小さな目の穴・鼻の穴・口
-      hg = max(hg, 1.0 - smoothstep(0.006, 0.01, length(vec2(abs(mu) - 0.055, mv - 0.02))));
-      hg = max(hg, (1.0 - smoothstep(0.003, 0.006, length(vec2(abs(mu) - 0.012, mv + 0.09)))) * 0.8);
-      hg = max(hg, 1.0 - smoothstep(0.005, 0.009, length(vec2(mu, mv + 0.165))));
+      // ふちの内側にそった溝
+      hg = max(hg, mgLine(e - 0.034, 0.008));
+      // 隆起の両わきの細い線
+      vec2 A2 = vec2(-0.135, 0.07), B2 = vec2(-0.005, -0.14);
+      vec2 P2 = vec2(mu, mv);
+      float t2 = clamp(dot(P2 - A2, B2 - A2) / dot(B2 - A2, B2 - A2), 0.0, 1.0);
+      float dr = length(P2 - A2 - (B2 - A2) * t2);
+      hg = max(hg, mgLine(dr - 0.02, 0.006) * step(0.03, e));
       return -hg * 0.0024;
     }
     // 後頭部：かぶとのような丸い頭に、点の列のついた筋（中央と左右）と、下のふちの帯
@@ -167,25 +207,47 @@ float patH(vec3 p) {
     for (int i = 0; i < 3; i++) b = max(b, mgLine(p.y - 0.78 - float(i) * 0.025 - p.x * 0.45, 0.007) * step(abs(p.x), 0.2));
     return -b * 0.0022;
   }
+  // 点の列（刺突文）：線のすぐ横に小さな丸い穴が並ぶ
+  #define DOTS(dist, along) (1.0 - smoothstep(0.0028, 0.0045, length(vec2(dist, fract((along) / 0.011) * 0.011 - 0.0055))))
   if (p.z > 0.0) {
-    // お腹の同心円
-    float r = length(vec2(p.x, (p.y - 0.72) * 1.05));
-    if (r < 0.16) g = max(g, mgLine(fract(r / 0.026 + 0.5) - 0.5, 0.18) * smoothstep(0.03, 0.04, r));
-    // 胸から肩への弧（V字に重なる線）
-    for (int i = 0; i < 4; i++) {
-      float k = float(i) * 0.024;
-      g = max(g, mgLine(p.y - (0.9 - k) + ax * (0.55 - k * 2.0), 0.007) * step(ax, 0.24) * step(0.78, p.y));
+    // お腹の同心円（中心に小さな穴）
+    float r = length(vec2(p.x, (p.y - 0.70) * 1.05));
+    if (r < 0.125) g = max(g, mgLine(fract(r / 0.026 + 0.5) - 0.5, 0.2) * step(0.02, r));
+    g = max(g, 1.0 - smoothstep(0.006, 0.01, r));
+    // 両肩から胸の中央へ下がる何本もの線（V字）と、その外側の点の列
+    if (p.y > 0.76 && r > 0.12) {
+      for (int i = 0; i < 4; i++) {
+        float k = float(i) * 0.02;
+        float dv = p.y - (0.875 - k) + ax * (0.5 - k * 1.5);
+        g = max(g, mgLine(dv, 0.007) * step(ax, 0.26));
+        if (i == 0) g = max(g, DOTS(dv - 0.011, ax) * step(ax, 0.26));
+      }
     }
+    // 同心円を下から囲む弧の線
+    float r2 = length(vec2(p.x * 0.85, (p.y - 0.70) * 1.05));
+    if (p.y < 0.72) for (int i = 0; i < 2; i++) g = max(g, mgLine(r2 - 0.15 - float(i) * 0.02, 0.007) * step(0.6, p.y));
+    // 股のまるいこぶのまわりの弧
+    float rk = length(vec2(p.x, (p.y - 0.535) * 1.2));
+    if (p.y < 0.6) g = max(g, mgLine(rk - 0.045, 0.007) * step(0.53, p.y));
   }
-  // 腕の先の渦巻（前後とも）
-  if (ax > 0.31 && p.y > 0.8) g = max(g, mgSpiral(vec2(ax - 0.4, p.y - 0.89), 0.017, 0.07));
-  // 腕の縁取りの線
-  if (ax > 0.1 && ax < 0.36 && p.y > 0.85) {
+  // 腕の先：同心円と中心の点（前後とも）
+  if (ax > 0.31 && p.y > 0.8) {
+    float ra = length(vec2(ax - 0.405, p.y - 0.885));
+    if (ra < 0.075) g = max(g, max(mgLine(fract(ra / 0.018 + 0.5) - 0.5, 0.28) * step(0.012, ra), 1.0 - smoothstep(0.005, 0.008, ra)));
+  }
+  // 腕：上下のふちにそった線と、上のふちの点の列
+  if (ax > 0.1 && ax < 0.34 && p.y > 0.84) {
     float yc = 0.93 - (ax - 0.12) * 0.11;
-    g = max(g, mgLine(abs(p.y - yc) - 0.035, 0.006));
+    float dy = abs(p.y - yc) - 0.035;
+    g = max(g, mgLine(dy, 0.006));
+    g = max(g, DOTS(p.y - yc - 0.022, ax) * 0.9);
   }
-  // 腰の帯：刻み
-  if (abs(p.y - 0.585) < 0.03) g = max(g, mgLine(sin(atan(p.x, p.z) * 60.0) * 0.012, 0.006));
+  // 腰の帯：ななめの刻み（縄のような帯）と上下の線
+  if (abs(p.y - 0.585) < 0.028) {
+    float a = atan(p.x, p.z);
+    g = max(g, mgLine(sin(a * 45.0 + p.y * 160.0) * 0.012, 0.006) * step(abs(p.y - 0.585), 0.018));
+    g = max(g, mgLine(abs(p.y - 0.585) - 0.022, 0.006));
+  }
   return -g * 0.0022 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
 }
 vec3 patC(vec3 p, float h) {
@@ -212,7 +274,7 @@ export const megami = {
   sdf,
   core: dataCore,
   thickness: 0.045,
-  voxel: 0.0135,
+  voxel: 0.0105,
   bounds: { min: [-0.52, -0.02, -0.29], max: [0.52, 1.4, 0.27] },
   clearRadius: 0.75,
   height: 1.38,
