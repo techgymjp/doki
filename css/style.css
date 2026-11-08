@@ -77,7 +77,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 @media (max-width: 720px) {
   .hud-help { bottom: calc(max(12px, env(safe-area-inset-bottom)) + 48px); }
   .hud-buttons { left: 12px; justify-content: space-between; }
-  .hud-buttons button { flex: 1; padding: 9px 4px; }
+  .hud-buttons button { flex: 1; padding: 9px 2px; font-size: 12px; white-space: nowrap; }
 }
 
 /* ---- トースト ---- */

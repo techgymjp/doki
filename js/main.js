@@ -51,9 +51,15 @@ const game = new Game($('stage'), {
   onTime: (t) => { $('hud-time').textContent = fmt(t); },
   onToast: (m) => toast(m),
   onGhost: (v) => $('btn-ghost').classList.toggle('on', v),
-  onStart: () => toast('一番下のピースから組み上げよう！'),
+  onStart: () => { toast('一番下のピースから組み上げよう！'); sfx.setTicking(true); },
   onDrag: (on) => { if (on) $('hud-help').classList.add('gone'); },
   onComplete: (r) => showResult(r),
+  onFinish: () => {
+    // 完成の瞬間：時計を止め、BGMを少し下げてファンファーレを聞かせる
+    sfx.setTicking(false);
+    sfx.setBgmVolume(0.18);
+    setTimeout(() => sfx.setBgmVolume(0.55), 3200);
+  },
 });
 if (location.search.includes('debug')) window.__game = game;
 
@@ -105,13 +111,22 @@ function startStage() {
   help.classList.remove('gone');
   clearTimeout(helpTimer);
   helpTimer = setTimeout(() => help.classList.add('gone'), 9000);
+  sfx.setTicking(false);
   game.setViewShift(0, 0);
   game.start();
   game.resetView(true);
 }
 
-ui.start.addEventListener('click', () => {
+// 最初にどこかを触ったら音を準備してBGMを流す（ブラウザの決まりで、操作の前は音を出せない）
+function wakeAudio() {
   sfx.initAudio();
+  sfx.startBgm();
+}
+addEventListener('pointerdown', wakeAudio, { once: true });
+addEventListener('keydown', wakeAudio, { once: true });
+
+ui.start.addEventListener('click', () => {
+  wakeAudio();
   ui.title.classList.add('hide');
   setTimeout(() => { ui.title.hidden = true; }, 400);
   startStage();
@@ -123,6 +138,10 @@ $('btn-view').addEventListener('click', () => game.resetView(true));
 $('btn-sound').addEventListener('click', (e) => {
   sfx.setMuted(!sfx.isMuted());
   e.currentTarget.textContent = sfx.isMuted() ? '音 OFF' : '音 ON';
+});
+$('btn-bgm').addEventListener('click', (e) => {
+  sfx.setBgmMuted(!sfx.isBgmMuted());
+  e.currentTarget.textContent = sfx.isBgmMuted() ? 'BGM OFF' : 'BGM ON';
 });
 $('btn-menu').addEventListener('click', () => {
   if (game.state === 'playing' && !confirm('タイトルにもどりますか？（進行中の復元は失われます）')) return;
@@ -136,6 +155,7 @@ function previewShift() {
 addEventListener('resize', () => { if (!ui.title.hidden) previewShift(); });
 
 function backToTitle() {
+  sfx.setTicking(false);
   ui.result.hidden = true;
   ui.hud.hidden = true;
   ui.title.hidden = false;

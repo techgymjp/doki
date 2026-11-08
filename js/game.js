@@ -450,6 +450,7 @@ export class Game {
 
   _complete() {
     this.state = 'complete';
+    this.ev.onFinish?.();
     this.ghostGroup.visible = false;
     setTimeout(() => {
       sfx.playComplete();
