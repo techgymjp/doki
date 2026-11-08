@@ -1,0 +1,159 @@
+// 仮面の女神（縄文時代後期・長野県茅野市 中ッ原遺跡出土・国宝）
+// 特徴をもとに距離関数でプログラム生成した3Dモデル（特定の一点を正確に写したものではありません）
+
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+function smin(a, b, k) {
+  const h = clamp(0.5 + 0.5 * (b - a) / k, 0, 1);
+  return b + (a - b) * h - k * h * (1 - h);
+}
+function ell(x, y, z, cx, cy, cz, rx, ry, rz) {
+  const px = (x - cx) / rx, py = (y - cy) / ry, pz = (z - cz) / rz;
+  const k0 = Math.hypot(px, py, pz);
+  const k1 = Math.hypot(px / rx, py / ry, pz / rz);
+  return k1 > 1e-9 ? (k0 * (k0 - 1)) / k1 : -Math.min(rx, ry, rz);
+}
+function cap(x, y, z, ax, ay, az, bx, by, bz, r) {
+  const px = x - ax, py = y - ay, pz = z - az, vx = bx - ax, vy = by - ay, vz = bz - az;
+  const h = clamp((px * vx + py * vy + pz * vz) / (vx * vx + vy * vy + vz * vz), 0, 1);
+  return Math.hypot(px - vx * h, py - vy * h, pz - vz * h) - r;
+}
+// 2Dの三角形の距離（iq）
+function sdTri(px, py, ax, ay, bx, by, cx, cy) {
+  const e0x = bx - ax, e0y = by - ay, e1x = cx - bx, e1y = cy - by, e2x = ax - cx, e2y = ay - cy;
+  const v0x = px - ax, v0y = py - ay, v1x = px - bx, v1y = py - by, v2x = px - cx, v2y = py - cy;
+  const seg = (vx, vy, ex, ey) => {
+    const t = clamp((vx * ex + vy * ey) / (ex * ex + ey * ey), 0, 1);
+    return [vx - ex * t, vy - ey * t];
+  };
+  const q0 = seg(v0x, v0y, e0x, e0y), q1 = seg(v1x, v1y, e1x, e1y), q2 = seg(v2x, v2y, e2x, e2y);
+  const s = Math.sign(e0x * e2y - e0y * e2x);
+  const d0 = [q0[0] * q0[0] + q0[1] * q0[1], s * (v0x * e0y - v0y * e0x)];
+  const d1 = [q1[0] * q1[0] + q1[1] * q1[1], s * (v1x * e1y - v1y * e1x)];
+  const d2 = [q2[0] * q2[0] + q2[1] * q2[1], s * (v2x * e2y - v2y * e2x)];
+  const dd = Math.min(d0[0], d1[0], d2[0]);
+  const ss = Math.min(d0[1], d1[1], d2[1]);
+  return -Math.sqrt(dd) * Math.sign(ss);
+}
+
+// 仮面：上が前に傾いた逆三角形の板
+const MASK = { cy: 1.2, cz: 0.07, a: 0.38 };
+function maskLocal(x, y, z) {
+  const dy = y - MASK.cy, dz = z - MASK.cz, c = Math.cos(MASK.a), s = Math.sin(MASK.a);
+  return [x, dy * c + dz * s, -dy * s + dz * c];
+}
+function maskSdf(x, y, z) {
+  const [u, v, w] = maskLocal(x, y, z);
+  const tri = sdTri(u, v, -0.205, 0.16, 0.205, 0.16, 0, -0.17) + 0.012;
+  const dw = Math.abs(w) - 0.035;
+  return Math.hypot(Math.max(tri, 0), Math.max(dw, 0)) + Math.min(Math.max(tri, dw), 0) - 0.012;
+}
+
+// 空洞をつくる胴体
+function core(x, y, z) {
+  const ax = Math.abs(x);
+  let d = ell(ax, y, z, 0.225, 0.27, 0, 0.2, 0.25, 0.18);                 // ふくらんだ脚
+  d = smin(d, ell(x, y, z, 0, 0.56, 0, 0.3, 0.085, 0.165), 0.05);         // 腰
+  d = smin(d, ell(x, y, z, 0, 0.76, 0, 0.245, 0.21, 0.145), 0.06);        // 胴
+  d = smin(d, ell(x, y, z, 0, 1.1, -0.06, 0.1, 0.1, 0.1), 0.05);          // 仮面の後ろの頭
+  return d;
+}
+
+function sdf(x, y, z) {
+  const ax = Math.abs(x);
+  let d = core(x, y, z);
+  d = smin(d, ell(ax, y, z, 0.225, 0.04, 0.0, 0.17, 0.045, 0.15), 0.04);   // 脚の台
+  d = smin(d, ell(x, y, z, 0, 0.585, 0, 0.29, 0.026, 0.165), 0.02);        // 腰の帯
+  // 水平にのばした腕（先がやや下がる）と、渦巻のある手先
+  d = smin(d, cap(ax, y, z, 0.12, 0.93, 0, 0.39, 0.9, 0.0, 0.055), 0.05);
+  d = smin(d, ell(ax, y, z, 0.405, 0.875, 0.0, 0.055, 0.085, 0.05), 0.03);
+  d = smin(d, cap(x, y, z, 0, 0.95, -0.02, 0, 1.08, -0.04, 0.075), 0.04);  // 首
+  d = smin(d, ell(x, y, z, 0, 1.17, -0.08, 0.06, 0.06, 0.06), 0.03);      // まげ
+  d = smin(d, maskSdf(x, y, z), 0.02);                                    // 仮面
+  // おへそ（同心円の中心）
+  d = smin(d, ell(x, y, z, 0, 0.72, 0.148, 0.018, 0.018, 0.012), 0.008);
+  return Math.max(d, -y);
+}
+
+const patternGLSL = `
+float mgHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
+float mgLine(float d, float w) { return 1.0 - smoothstep(w * 0.5, w, abs(d)); }
+float mgSpiral(vec2 q, float pitch, float rmax) {
+  float r = length(q);
+  if (r > rmax) return 0.0;
+  float t = r / pitch - atan(q.y, q.x) / 6.2831853;
+  return mgLine((t - floor(t + 0.5)) * pitch, 0.006);
+}
+float patH(vec3 p) {
+  float ax = abs(p.x);
+  float g = 0.0;
+  // 仮面：ふちの盛り上がり・鼻すじ・目
+  float c = cos(0.38), s = sin(0.38);
+  float dy = p.y - 1.2, dz = p.z - 0.07;
+  vec2 m = vec2(p.x, dy * c + dz * s);
+  float w = -dy * s + dz * c;
+  if (w > 0.02 && m.y > -0.19 && m.y < 0.18) {
+    float edge = max(m.y - 0.13, (abs(m.x) * 0.33 / 0.205 - (m.y + 0.17) * 1.0) * 0.6);
+    float rim = mgLine(edge + 0.012, 0.012);
+    float nose = mgLine(m.x, 0.012) * step(-0.09, m.y) * step(m.y, 0.08);
+    float eye = 1.0 - smoothstep(0.005, 0.009, length(vec2(ax - 0.06, m.y - 0.05)));
+    float brow = mgLine(m.y - 0.085 - ax * 0.25, 0.007) * step(ax, 0.12);
+    return (rim * 0.8 + nose * 0.8 - eye * 1.5 - brow) * 0.0012;
+  }
+  if (p.z > 0.0) {
+    // お腹の同心円
+    float r = length(vec2(p.x, (p.y - 0.72) * 1.05));
+    if (r < 0.16) g = max(g, mgLine(fract(r / 0.026 + 0.5) - 0.5, 0.18) * smoothstep(0.03, 0.04, r));
+    // 胸から肩への弧（V字に重なる線）
+    for (int i = 0; i < 4; i++) {
+      float k = float(i) * 0.024;
+      g = max(g, mgLine(p.y - (0.9 - k) + ax * (0.55 - k * 2.0), 0.007) * step(ax, 0.24) * step(0.78, p.y));
+    }
+  }
+  // 腕の先の渦巻（前後とも）
+  if (ax > 0.31 && p.y > 0.8) g = max(g, mgSpiral(vec2(ax - 0.4, p.y - 0.89), 0.017, 0.07));
+  // 腕の縁取りの線
+  if (ax > 0.1 && ax < 0.36 && p.y > 0.85) {
+    float yc = 0.93 - (ax - 0.12) * 0.11;
+    g = max(g, mgLine(abs(p.y - yc) - 0.035, 0.006));
+  }
+  // 腰の帯：刻み
+  if (abs(p.y - 0.585) < 0.03) g = max(g, mgLine(sin(atan(p.x, p.z) * 60.0) * 0.012, 0.006));
+  return -g * 0.0013 + (mgHash(floor(p * 120.0)) - 0.5) * 0.00012;
+}
+vec3 patC(vec3 p, float h) {
+  vec3 c = vec3(1.0);
+  // 黒く焼けたむらと、茶色いところ
+  float n = sin(p.x * 9.0 + 3.0 * sin(p.y * 6.0)) * sin(p.y * 11.0 + p.z * 7.0 + 1.3);
+  c *= mix(vec3(0.82), vec3(1.3, 1.15, 1.0), smoothstep(0.2, 0.8, n));
+  c *= 1.0 + clamp(-h / 0.0013, 0.0, 1.0) * 0.55;
+  return c;
+}
+`;
+
+export const megami = {
+  id: 'megami',
+  type: 'sdf',
+  name: '仮面の女神',
+  ruby: 'かめんのめがみ',
+  kind: '土偶',
+  era: '縄文時代後期前半（約4,000年前）',
+  place: '長野県茅野市・中ッ原遺跡',
+  available: true,
+  sdf,
+  core,
+  thickness: 0.045,
+  voxel: 0.0135,
+  bounds: { min: [-0.48, -0.02, -0.22], max: [0.48, 1.4, 0.26] },
+  height: 1.38,
+  patternGLSL,
+  bumpStrength: 1.0,
+  clayColor: [0.19, 0.15, 0.12],
+  innerColor: [0.15, 0.12, 0.09],
+  fractureColor: [0.62, 0.47, 0.34],
+  description: [
+    '仮面の女神は、2000年に長野県茅野市の中ッ原（なかっぱら）遺跡で見つかった、縄文時代後期前半（約4,000年前）の土偶です。高さは34cmあり、顔に逆三角形の仮面をつけた姿をしています。',
+    '中が空洞の「中空土偶」で、お腹の同心円や腕の先の渦巻など、体には細い線の文様がていねいに刻まれています。大きくふくらんだ脚は、ズボンをはいているようにも見えます。',
+    '集落の墓とみられる穴の中から、右脚が外れた状態で見つかりました。2014年に国宝に指定され、縄文のビーナスとともに茅野市尖石縄文考古館に収蔵されています。',
+  ],
+  note: 'このゲームの3Dモデルは、仮面の女神の特徴をもとにプログラムで生成したもので、特定の実物を正確に再現したものではありません。',
+};
