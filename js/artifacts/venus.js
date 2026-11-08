@@ -31,7 +31,7 @@ function cap(x, y, z, ax, ay, az, bx, by, bz, r) {
 }
 
 // 胴体の主な部分（ここから内側を空洞にする）
-const HZ = 0.0;                              // 頭は首より少し前に出る
+const HZ = 0.06;                              // 頭は首より少し前に出る
 const TOP = (zh) => 1.335 + 0.22 * zh;         // 帽子の上の面（前が高く、後ろが低い）
 // 胴の輪郭（正面の半幅 w・奥行きの半分 d・前後の中心 zc）を高さごとに
 const PROF = [
@@ -44,8 +44,8 @@ const PROF = [
   [0.86, 0.19, 0.1, 0.0],
   [0.93, 0.215, 0.095, 0.0],   // 肩
   [0.985, 0.12, 0.08, 0.01],
-  [1.04, 0.09, 0.085, 0.03],   // 太く短い首
-  [1.1, 0.088, 0.078, 0.045],
+  [1.04, 0.09, 0.085, 0.035],  // 太く短い首（前へ傾く）
+  [1.1, 0.09, 0.08, 0.06],
 ];
 function torso(x, y, z) {
   const yc = clamp(y, PROF[0][0], PROF[PROF.length - 1][0]);
@@ -65,9 +65,9 @@ function procCore(x, y, z) {
   d = smin(d, torso(x, y, z), 0.04);
   d = smin(d, ell(ax, y, z, 0.12, 0.37, 0.035, 0.14, 0.13, 0.15), 0.05);   // 前にふくらむ太もも
   d = smin(d, ell(ax, y, z, 0.08, 0.42, -0.12, 0.13, 0.15, 0.12), 0.06);   // 後ろへ張り出したお尻
-  d = smin(d, ecyl(x, y, zh, 1.24, 0.18, 0.165, 0.13, -0.03, 0.05), 0.03);  // 帽子（3Dデータの幅・奥行きに合わせる）
+  d = smin(d, ecyl(x, y, zh, 1.235, 0.2, 0.18, 0.135, -0.03, 0.05), 0.03);  // 帽子（3Dデータの幅・奥行きに合わせる）
   d = Math.max(d, y - TOP(zh));
-  d = Math.max(d, -ell(x, y, zh, 0, 1.2, 0.17, 0.118, 0.118, 0.15));       // 正面の丸いくぼみ（内側の壁もそれに沿う）
+  d = Math.max(d, -ell(x, y, zh, 0, 1.19, 0.17, 0.14, 0.135, 0.17));       // 正面の丸いくぼみ（内側の壁もそれに沿う）
   return d;
 }
 
@@ -85,33 +85,39 @@ function procSdf(x, y, z) {
   // 太ももの間のみぞ（お腹の下）
   d = Math.max(d, -Math.max(ax - 0.006, Math.abs(y - 0.4) - 0.1, 0.12 - z)); // 前側だけ浅く
   // 帽子の正面を丸くくぼませる（つばが顔のまわりを丸く囲む）
-  d = Math.max(d, -ell(x, y, zh, 0, 1.2, 0.17, 0.118, 0.118, 0.15));
+  d = Math.max(d, -ell(x, y, zh, 0, 1.19, 0.17, 0.14, 0.135, 0.17));
+  {
+  // 顔は大きく、帽子のつばより前にせり出す（元の形を FS 倍に拡大して前へ）
+  const FS = 1.28;
+  const fx = x / FS, fy = 1.19 + (y - 1.19) / FS, fz = 0.05 + (zh - 0.05 - 0.05) / FS;
+  const fax = Math.abs(fx);
   // 顔：丸みをおびて前にせり出したハート形（上が左右にふくらみ、あごが少しとがる）
-  let face = ell(ax, y, zh, 0.036, 1.215, 0.05, 0.072, 0.066, 0.11);
-  face = smin(face, ell(x, y, zh, 0, 1.16, 0.05, 0.065, 0.062, 0.105), 0.02);
-  face = smin(face, cap(x, y, zh, 0, 1.23, 0.13, 0, 1.19, 0.18, 0.016), 0.012);   // とがった鼻
+  let face = ell(fax, fy, fz, 0.036, 1.215, 0.05, 0.072, 0.066, 0.11);
+  face = smin(face, ell(fx, fy, fz, 0, 1.16, 0.05, 0.065, 0.062, 0.105), 0.02);
+  face = smin(face, cap(fx, fy, fz, 0, 1.23, 0.13, 0, 1.19, 0.18, 0.016), 0.012);   // とがった鼻
   // つり目（細い切れ込み）と口
   const slit = (ax0, ay0, bx0, by0, r) => {
-    const px = ax - ax0, py = y - ay0, vx = bx0 - ax0, vy = by0 - ay0;
+    const px = fax - ax0, py = fy - ay0, vx = bx0 - ax0, vy = by0 - ay0;
     const t = clamp((px * vx + py * vy) / (vx * vx + vy * vy), 0, 1);
-    return Math.max(Math.hypot(px - vx * t, py - vy * t) - r, 0.11 - zh);
+    return Math.max(Math.hypot(px - vx * t, py - vy * t) - r, 0.11 - fz);
   };
-  face = Math.max(face, -slit(0.022, 1.203, 0.066, 1.225, 0.006));
+  face = Math.max(face, -slit(0.022, 1.203, 0.066, 1.225, 0.0075));
   face = Math.max(face, -slit(0, 1.142, 0, 1.144, 0.009));
-  d = smin(d, face, 0.012);
+  d = smin(d, face * FS, 0.014);
+  }
   // 耳（丸い耳たぶと穴）
-  d = smin(d, ell(ax, y, zh, 0.15, 1.12, 0.02, 0.032, 0.035, 0.03), 0.01);
-  d = Math.max(d, -ell(ax, y, zh, 0.17, 1.12, 0.02, 0.012, 0.014, 0.012));
+  d = smin(d, ell(ax, y, zh, 0.185, 1.12, 0.02, 0.035, 0.038, 0.032), 0.01);
+  d = Math.max(d, -ell(ax, y, zh, 0.21, 1.12, 0.02, 0.013, 0.015, 0.013));
   // 頭のてっぺん：渦巻の溝と、まん中の穴
   const top = TOP(zh);
   if (y > top - 0.04) {
     const qx = x, qz = (zh + 0.02) * 1.1;
     const r = Math.hypot(qx, qz);
-    if (r < 0.15) {
+    if (r < 0.175) {
       const pitch = 0.038;
       const t = r / pitch - Math.atan2(qz, qx) / (Math.PI * 2);
       const ds = Math.abs(t - Math.round(t)) * pitch;
-      const groove = Math.max(ds - 0.0095, top - 0.016 - y, r - 0.145);
+      const groove = Math.max(ds - 0.0095, top - 0.016 - y, r - 0.17);
       d = Math.max(d, -groove);
     }
     d = Math.max(d, -Math.max(r - 0.022, top - 0.06 - y));
@@ -202,8 +208,15 @@ float patH(vec3 p) {
       vec2 q = vec2(p.z + 0.06, p.y - 1.255);
       if (p.x < 0.0) q.x = -q.x;
       h = max(h, vnSpiral(q, 0.019, 0.05));
-      float arc = abs(length(vec2(p.z + 0.06, (p.y - 1.255) * 1.3)) - 0.075);
-      h -= (1.0 - smoothstep(0.003, 0.006, arc)) * step(p.y, 1.31);
+      // 写真：渦巻を囲むように何本もの曲線が前へ流れる
+      for (int i = 0; i < 3; i++) {
+        float rr = 0.07 + float(i) * 0.022;
+        float arc = abs(length(vec2(p.z + 0.06, (p.y - 1.255) * 1.25)) - rr);
+        h -= (1.0 - smoothstep(0.003, 0.006, arc)) * step(p.z, 0.04 - float(i) * 0.02) * step(1.13, p.y) * step(p.y, 1.36);
+      }
+      // つばに沿った前のふちの線
+      float rim = abs(length(vec2(abs(p.x) - 0.0, (p.y - 1.19) * 1.0)) - 0.16);
+      h -= (1.0 - smoothstep(0.003, 0.006, rim)) * step(0.06, p.z);
     }
   }
   // 磨いた面のわずかなむら
@@ -239,7 +252,7 @@ export const venus = {
   core,
   thickness: 0.055,
   voxel: 0.0105,
-  bounds: { min: [-0.36, -0.02, -0.32], max: [0.36, 1.43, 0.32] },
+  bounds: { min: [-0.36, -0.02, -0.32], max: [0.36, 1.43, 0.4] },
   height: 1.36,
   patternGLSL,
   bumpStrength: 1.0,
