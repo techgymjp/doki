@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildShell, paintShellTextures, makeProfile } from './shell.js';
+import { buildSdfPieces, makePatternMaterial } from './sdfbuild.js';
 import { mulberry32 } from './noise.js';
 import * as sfx from './audio.js';
 
@@ -148,18 +149,25 @@ export class Game {
   async load(def, onProgress = () => {}) {
     this.def = def;
     await nextFrame();
-    const tex = paintShellTextures(def, makeProfile(def).prof);
-    onProgress(0.4);
-    const colorTex = new THREE.CanvasTexture(tex.colorCanvas);
-    colorTex.colorSpace = THREE.SRGBColorSpace;
-    const bumpTex = new THREE.CanvasTexture(tex.bumpCanvas);
-    for (const t of [colorTex, bumpTex]) {
-      t.wrapS = THREE.RepeatWrapping;
-      t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    if (def.type === 'sdf') {
+      this.materials = [makePatternMaterial(def)];
+    } else {
+      const tex = paintShellTextures(def, makeProfile(def).prof);
+      const colorTex = new THREE.CanvasTexture(tex.colorCanvas);
+      colorTex.colorSpace = THREE.SRGBColorSpace;
+      const bumpTex = new THREE.CanvasTexture(tex.bumpCanvas);
+      for (const t of [colorTex, bumpTex]) {
+        t.wrapS = THREE.RepeatWrapping;
+        t.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      }
+      this.materials = [
+        new THREE.MeshStandardMaterial({ map: colorTex, bumpMap: bumpTex, bumpScale: 2.2, roughness: 0.9, metalness: 0 }),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }),
+      ];
     }
-    this.outerMat = new THREE.MeshStandardMaterial({ map: colorTex, bumpMap: bumpTex, bumpScale: 2.2, roughness: 0.9, metalness: 0 });
-    this.innerMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+    onProgress(0.4);
     this.ghostMat = new THREE.MeshBasicMaterial({ color: 0x6e5a44, transparent: true, opacity: 0.28, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide });
+    if (def.type === 'sdf') this.ghostMat.opacity = 0.1;
     this.slotMat = new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.35, depthWrite: false });
     await nextFrame();
     this._build(def.pieces || 12, (Math.random() * 1e9) | 0, (p) => onProgress(0.4 + 0.6 * p));
@@ -170,11 +178,17 @@ export class Game {
     this.ghostGroup.clear();
     this.pieceCount = count;
     this.seed = seed;
-    const { pieces } = buildShell(this.def, { pieceCount: count, seed, onProgress });
+    const builder = this.def.type === 'sdf' ? buildSdfPieces : buildShell;
+    const { pieces } = builder(this.def, { pieceCount: count, seed, onProgress });
     const rng = mulberry32(seed ^ 0x5bd1e995);
     this.pieces = pieces.map((pc) => {
-      const mats = [this.outerMat.clone(), this.innerMat.clone()];
-      const mesh = new THREE.Mesh(pc.geometry, mats);
+      const mats = this.materials.map((m) => {
+        const c = m.clone();
+        c.onBeforeCompile = m.onBeforeCompile;
+        c.customProgramCacheKey = m.customProgramCacheKey;
+        return c;
+      });
+      const mesh = new THREE.Mesh(pc.geometry, mats.length === 1 ? mats[0] : mats);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.position.copy(pc.center);
@@ -386,7 +400,7 @@ export class Game {
     if (d.magnet) {
       sfx.playDeny();
       this.ev.onToast?.(this._placedCount() === 0
-        ? 'まずは一番下（底）のピースからはめよう'
+        ? 'まずは一番下のピースからはめよう'
         : 'まだはめられません。はまっているピースにつながる所から順に組み上げよう');
     }
     this._setGlow(p, 0x000000);

@@ -23,9 +23,10 @@ function saveCleared(id) {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify([...s])); } catch { /* 保存できなくても遊べる */ }
 }
 // 前のステージをクリアすると次が遊べる
+const params = new URLSearchParams(location.search);
 function isUnlocked(i) {
   if (!STAGES[i].available) return false;
-  if (i === 0) return true;
+  if (i === 0 || params.has('all')) return true;
   return loadCleared().has(STAGES[i - 1].id);
 }
 const nextPlayable = () => (stageIndex + 1 < STAGES.length && STAGES[stageIndex + 1].available ? stageIndex + 1 : -1);
@@ -50,7 +51,7 @@ const game = new Game($('stage'), {
   onTime: (t) => { $('hud-time').textContent = fmt(t); },
   onToast: (m) => toast(m),
   onGhost: (v) => $('btn-ghost').classList.toggle('on', v),
-  onStart: () => toast('底のピースから組み上げよう！'),
+  onStart: () => toast('一番下のピースから組み上げよう！'),
   onDrag: (on) => { if (on) $('hud-help').classList.add('gone'); },
   onComplete: (r) => showResult(r),
 });
@@ -177,5 +178,6 @@ $('btn-view-pot').addEventListener('click', () => { ui.result.hidden = true; gam
 $('btn-title').addEventListener('click', backToTitle);
 
 // ---- 起動 ----
+const startIdx = Math.max(0, Math.min(STAGES.length - 1, (parseInt(params.get('stage'), 10) || 1) - 1));
 renderList();
-selectStage(0);
+selectStage(isUnlocked(startIdx) ? startIdx : 0);
