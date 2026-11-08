@@ -36,6 +36,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .artifact-info rt { font-size: 10px; color: var(--muted); }
 .artifact-info span { display: block; font-size: 12px; color: var(--muted); font-family: var(--gothic); margin-top: 2px; }
 .diff-btn { background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 8px 4px; font-weight: 700; font-size: 14px; display: flex; flex-direction: column; align-items: center; }
+  .artifact-info .level { color: var(--accent-2); letter-spacing: .05em; }
 .diff-btn small { font-weight: 400; font-size: 11px; color: var(--muted); }
 .diff-btn.selected { border-color: var(--accent-2); background: rgba(241,177,90,.14); }
 .primary { background: linear-gradient(180deg, #ef8a45, #c4561f); border: none; border-radius: 12px; padding: 13px; font-size: 17px; font-weight: 700; letter-spacing: .08em; color: #fff8ef; box-shadow: 0 6px 20px rgba(196,86,31,.35); }

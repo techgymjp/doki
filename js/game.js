@@ -8,8 +8,17 @@ import * as sfx from './audio.js';
 const ease = (t) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-// 遊びの設定（難易度は選ばせず、ステージごとのピース数だけを変える）
-const SETTINGS = { snap: 0.13, ghost: true, slotHint: false };
+// ステージが進むほど難しくする（難易度は選ばせない）
+//   level 1→6 で、はまる判定がきびしくなり、完成形のガイドがうすく→最初は非表示になる
+export function levelSettings(level = 1) {
+  const lv = Math.max(1, Math.min(6, level));
+  return {
+    snap: 0.16 - 0.012 * (lv - 1),
+    ghost: lv <= 5,
+    ghostStrength: lv <= 3 ? 1 : 0.5,
+    slotHint: false,
+  };
+}
 
 export class Game {
   constructor(container, events = {}) {
@@ -172,8 +181,10 @@ export class Game {
     onProgress(0.4);
     this.ghostMat = new THREE.MeshBasicMaterial({ color: 0x6e5a44, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide });
     if (def.type === 'sdf') this.ghostMat.opacity = 0.1;
+    this.ghostBaseOpacity = this.ghostMat.opacity;
     this.slotMat = new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.35, depthWrite: false });
     await nextFrame();
+    if (this.wholeMesh) { this.potGroup.remove(this.wholeMesh); this.wholeMesh.geometry.dispose(); this.wholeMesh = null; }
     this._build(def.pieces || 12, (Math.random() * 1e9) | 0, (p) => onProgress(0.4 + 0.6 * p));
   }
 
@@ -183,7 +194,17 @@ export class Game {
     this.pieceCount = count;
     this.seed = seed;
     const builder = this.def.type === 'sdf' ? buildSdfPieces : buildShell;
-    const { pieces } = builder(this.def, { pieceCount: count, seed, onProgress });
+    const { pieces, whole } = builder(this.def, { pieceCount: count, seed, onProgress, withWhole: !this.wholeMesh });
+    if (whole) {
+      // 割れ目のない完成形（タイトル画面と完成後に使う）
+      const m0 = this.materials[0], m = m0.clone();
+      m.onBeforeCompile = m0.onBeforeCompile;
+      m.customProgramCacheKey = m0.customProgramCacheKey;
+      this.wholeMesh = new THREE.Mesh(whole, m);
+      this.wholeMesh.castShadow = true;
+      this.wholeMesh.receiveShadow = true;
+      this.potGroup.add(this.wholeMesh);
+    }
     const rng = mulberry32(seed ^ 0x5bd1e995);
     this.pieces = pieces.map((pc) => {
       const mats = this.materials.map((m) => {
@@ -201,7 +222,12 @@ export class Game {
       const ghost = new THREE.Mesh(pc.geometry, this.ghostMat);
       ghost.position.copy(pc.center);
       this.ghostGroup.add(ghost);
-      return { ...pc, mesh, mats, placed: true, rest: null, rng };
+      // 地面に接するピースか（足・底など）
+      const pa = pc.geometry.attributes.position;
+      let minY = Infinity;
+      for (let q = 1; q < pa.array.length; q += 3) if (pa.array[q] < minY) minY = pa.array[q];
+      const grounded = pc.center.y + minY < 0.02;
+      return { ...pc, mesh, mats, placed: true, rest: null, rng, grounded };
     });
     this._computeRestPoses(rng);
     this.ghostGroup.visible = false;
@@ -236,7 +262,7 @@ export class Game {
       let best = null;
       for (let tries = 0; tries < 800; tries++) {
         const ang = (rng() * 2 - 1) * Math.PI * (tries < 200 ? 0.7 : 1);
-        const R = 0.95 + rad + rng() * (0.9 + tries * 0.003);
+        const R = (this.def.clearRadius ?? 0.65) + 0.3 + rad + rng() * (0.9 + tries * 0.003);
         const x = Math.sin(ang) * R, z = Math.cos(ang) * R;
         // プレイ中の視点で画面内（ボタンにかからない範囲）に見えること
         const gap = tries < 300 ? 1 : Math.max(0.55, 1 - (tries - 300) / 500);
@@ -254,8 +280,16 @@ export class Game {
   }
 
   // ---------------- 状態遷移 ----------------
+  // 完成形を見せる（true）か、ピースを見せる（false）か
+  _setWhole(on) {
+    if (!this.wholeMesh) return;
+    this.wholeMesh.visible = on;
+    for (const p of this.pieces) p.mesh.visible = !on;
+  }
+
   showPreview() {
     this.state = 'preview';
+    this._setWhole(true);
     this._clearAnims();
     this.potGroup.rotation.set(0, 0, 0);
     for (const p of this.pieces) {
@@ -270,9 +304,11 @@ export class Game {
   }
 
   start() {
-    this.diff = SETTINGS;
+    this.diff = levelSettings(this.def.level);
+    this.ghostMat.opacity = this.ghostBaseOpacity * this.diff.ghostStrength;
     const seed = (Math.random() * 1e9) | 0;
     this._build(this.def.pieces || 12, seed);
+    this._setWhole(true);
     for (const p of this.pieces) { p.mesh.position.copy(p.center); p.mesh.quaternion.identity(); }
     this.controls.autoRotate = false;
     this.state = 'breaking';
@@ -287,6 +323,7 @@ export class Game {
     this._shake = { t0, dur: 650 };
     setTimeout(() => {
       sfx.playBreak();
+      this._setWhole(false);
       this._dust(new THREE.Vector3(0, 0.6, 0), 120, 0xd9c2a0, 1.8);
       for (const p of this.pieces) {
         p.placed = false;
@@ -404,8 +441,8 @@ export class Game {
     if (d.magnet) {
       sfx.playDeny();
       this.ev.onToast?.(this._placedCount() === 0
-        ? 'まずは一番下のピースからはめよう'
-        : 'まだはめられません。はまっているピースにつながる所から順に組み上げよう');
+        ? 'まずは地面につくピース（底や足）からはめよう'
+        : 'まだはめられません。地面か、はまっているピースにつながる所から組み上げよう');
     }
     this._setGlow(p, 0x000000);
     // 机の上に置く。器の上や遠すぎる所で離したときは元の場所に戻す
@@ -413,13 +450,13 @@ export class Game {
     const tp = new THREE.Vector3();
     if (ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), tp)) {
       const r = Math.hypot(tp.x, tp.z);
-      const minR = 0.9 + p.geometry.boundingSphere.radius * 0.6;
+      const minR = (this.def.clearRadius ?? 0.65) + 0.25 + p.geometry.boundingSphere.radius * 0.6;
       // 器のうしろに隠れる場所かどうか（視線が器の円柱を通るか）
       let hidden = false;
       const q = new THREE.Vector3();
       for (let k = 1; k < 40; k++) {
         q.lerpVectors(ray.origin, tp, k / 40);
-        if (q.y < 1.45 && Math.hypot(q.x, q.z) < 0.68) { hidden = true; break; }
+        if (q.y < 1.45 && Math.hypot(q.x, q.z) < (this.def.clearRadius ?? 0.65)) { hidden = true; break; }
       }
       if (!hidden && r > minR && r < 4.2) p.rest.pos.set(tp.x, p.rest.pos.y, tp.z);
     }
@@ -428,9 +465,10 @@ export class Game {
 
   _placedCount() { return this.pieces.filter((p) => p.placed).length; }
 
-  // 一番下から順に：底のピースが最初、そのあとは既にはまったピースと接するものだけ
+  // 一番下から順に：地面に接するピース（底・足）はいつでも置ける。
+  // それ以外は、すでにはまったピースと接しているものだけ
   _placeable(p) {
-    if (this._placedCount() === 0) return p.id === 0;
+    if (p.grounded) return true;
     for (const a of p.adj) if (this.pieces[a].placed) return true;
     return false;
   }
@@ -453,6 +491,9 @@ export class Game {
     this.ev.onFinish?.();
     this.ghostGroup.visible = false;
     setTimeout(() => {
+      // つなぎ目を消して、割れ目のない姿に
+      this._setWhole(true);
+      this._burst(new THREE.Vector3(0, 0.7, 0));
       sfx.playComplete();
       this._dust(new THREE.Vector3(0, 0.8, 0), 160, 0xffd77a, 2.2);
       this.controls.autoRotate = true;

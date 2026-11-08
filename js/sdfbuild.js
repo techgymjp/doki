@@ -10,7 +10,7 @@ import { mulberry32, fbm3, hash3i } from './noise.js';
 const TETS = [[0, 5, 1, 6], [0, 1, 2, 6], [0, 2, 3, 6], [0, 3, 7, 6], [0, 7, 4, 6], [0, 4, 5, 6]];
 const CORNER = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]];
 
-export function buildSdfPieces(def, { pieceCount, seed, onProgress = () => {} }) {
+export function buildSdfPieces(def, { pieceCount, seed, onProgress = () => {}, withWhole = false }) {
   const rng = mulberry32(seed);
   const h = def.voxel;
   const [x0, y0, z0] = def.bounds.min, [x1, y1, z1] = def.bounds.max;
@@ -290,6 +290,78 @@ export function buildSdfPieces(def, { pieceCount, seed, onProgress = () => {} })
     onProgress(0.55 + 0.45 * (pi + 1) / used.length);
   });
 
+  // ---------- 割れていない完成形（タイトル画面と完成後に見せる） ----------
+  let whole = null;
+  if (withWhole) {
+    const pos = [], nor = [], col = [], msk = [];
+    const vals = new Float32Array(8), gi = new Int32Array(8), gj = new Int32Array(8), gk = new Int32Array(8);
+    const P = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], Nn = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], ty = [0, 0, 0, 0];
+    const vtx = (ca, cb, q) => {
+      const va = vals[ca], vb = vals[cb], tt = va / (va - vb);
+      const ia = gi[ca], ja = gj[ca], ka = gk[ca], ib = gi[cb], jb = gj[cb], kb = gk[cb];
+      P[q][0] = x0 + (ia + (ib - ia) * tt) * h;
+      P[q][1] = y0 + (ja + (jb - ja) * tt) * h;
+      P[q][2] = z0 + (ka + (kb - ka) * tt) * h;
+      const na = id(ia, ja, ka), nbb = id(ib, jb, kb);
+      const g = [0, 0, 0];
+      gradSH(na, g, 1 - tt); gradSH(nbb, g, tt);
+      const l = Math.hypot(g[0], g[1], g[2]) || 1;
+      Nn[q][0] = g[0] / l; Nn[q][1] = g[1] / l; Nn[q][2] = g[2] / l;
+      ty[q] = (tt < 0.5 ? outerDom[na] : outerDom[nbb]) ? 0 : 1;
+    };
+    const emit = (a, b, c) => {
+      const pa = P[a], pb = P[b], pc = P[c];
+      const ux = pb[0] - pa[0], uy = pb[1] - pa[1], uz = pb[2] - pa[2];
+      const vx = pc[0] - pa[0], vy = pc[1] - pa[1], vz = pc[2] - pa[2];
+      const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+      if (cx * cx + cy * cy + cz * cz < 1e-18) return;
+      const sx = Nn[a][0] + Nn[b][0] + Nn[c][0], sy = Nn[a][1] + Nn[b][1] + Nn[c][1], sz = Nn[a][2] + Nn[b][2] + Nn[c][2];
+      const order = cx * sx + cy * sy + cz * sz >= 0 ? [a, b, c] : [a, c, b];
+      const tri = ty[a] + ty[b] + ty[c] <= 1 ? 0 : 1;
+      const cc = tri === 0 ? def.clayColor : def.innerColor;
+      for (const v of order) {
+        pos.push(P[v][0], P[v][1], P[v][2]);
+        nor.push(Nn[v][0], Nn[v][1], Nn[v][2]);
+        const jit = 0.9 + 0.2 * hash3i(Math.floor(P[v][0] * 300), Math.floor(P[v][1] * 300), Math.floor(P[v][2] * 300));
+        col.push(cc[0] * jit, cc[1] * jit, cc[2] * jit);
+        msk.push(tri === 0 ? 1 : 0);
+      }
+    };
+    for (let k = 0; k < NZ - 1; k++) for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++) {
+      let neg = 0;
+      for (let c = 0; c < 8; c++) {
+        const ii = i + CORNER[c][0], jj = j + CORNER[c][1], kk = k + CORNER[c][2];
+        gi[c] = ii; gj[c] = jj; gk[c] = kk;
+        const v = SH[id(ii, jj, kk)];
+        vals[c] = v === 0 ? 1e-7 : v;
+        if (vals[c] < 0) neg++;
+      }
+      if (neg === 0 || neg === 8) continue;
+      for (const tet of TETS) {
+        const ins = [], outs = [];
+        for (const c of tet) (vals[c] < 0 ? ins : outs).push(c);
+        if (ins.length === 0 || ins.length === 4) continue;
+        if (ins.length === 1 || ins.length === 3) {
+          const lone = ins.length === 1 ? ins[0] : outs[0];
+          const others = ins.length === 1 ? outs : ins;
+          for (let q = 0; q < 3; q++) vtx(lone, others[q], q);
+          emit(0, 1, 2);
+        } else {
+          const [a, b] = ins, [c, d] = outs;
+          vtx(a, c, 0); vtx(a, d, 1); vtx(b, d, 2); vtx(b, c, 3);
+          emit(0, 1, 2); emit(0, 2, 3);
+        }
+      }
+    }
+    whole = new THREE.BufferGeometry();
+    whole.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+    whole.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nor), 3));
+    whole.setAttribute('color', new THREE.BufferAttribute(new Float32Array(col), 3));
+    whole.setAttribute('opos', new THREE.BufferAttribute(new Float32Array(pos), 3));
+    whole.setAttribute('pmask', new THREE.BufferAttribute(new Float32Array(msk), 1));
+    whole.computeBoundingSphere();
+  }
+
   // いちばん下（足）のピースを 0 番に
   pieces.sort((a, b) => a.minY - b.minY);
   const remap = new Map(pieces.map((p, n) => [p.label, n]));
@@ -297,7 +369,7 @@ export function buildSdfPieces(def, { pieceCount, seed, onProgress = () => {} })
     p.id = n;
     p.adj = new Set([...adjRaw.get(p.label)].filter((a) => remap.has(a)).map((a) => remap.get(a)));
   });
-  return { pieces };
+  return { pieces, whole };
 }
 
 // 外面に文様（凹凸と色）を描くマテリアル。文様は def.patternGLSL で定義する。

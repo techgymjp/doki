@@ -51,7 +51,7 @@ const game = new Game($('stage'), {
   onTime: (t) => { $('hud-time').textContent = fmt(t); },
   onToast: (m) => toast(m),
   onGhost: (v) => $('btn-ghost').classList.toggle('on', v),
-  onStart: () => { toast('一番下のピースから組み上げよう！'); sfx.setTicking(true); },
+  onStart: () => { toast('地面につくピース（底や足）から組み上げよう！'); sfx.setTicking(true); },
   onDrag: (on) => { if (on) $('hud-help').classList.add('gone'); },
   onComplete: (r) => showResult(r),
   onFinish: () => {
@@ -78,7 +78,8 @@ function renderList() {
     ui.list.appendChild(b);
   });
   const cur = STAGES[stageIndex];
-  ui.info.innerHTML = `<ruby>${cur.name}<rt>${cur.ruby}</rt></ruby><span>${cur.era}｜${cur.place}｜${cur.pieces}ピース</span>`;
+  const stars = '★'.repeat(cur.level || 1) + '☆'.repeat(6 - (cur.level || 1));
+  ui.info.innerHTML = `<ruby>${cur.name}<rt>${cur.ruby}</rt></ruby><span>${cur.era}｜${cur.place}</span><span class="level">難易度 ${stars}｜${cur.pieces}ピース</span>`;
 }
 
 async function selectStage(i) {
