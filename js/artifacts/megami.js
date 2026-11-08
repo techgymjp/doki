@@ -58,7 +58,7 @@ function core(x, y, z) {
   return d;
 }
 
-function sdf(x, y, z) {
+function procSdf(x, y, z) {
   const ax = Math.abs(x);
   let d = core(x, y, z);
   d = smin(d, ell(ax, y, z, 0.225, 0.04, 0.0, 0.17, 0.045, 0.15), 0.04);   // 脚の台
@@ -82,6 +82,17 @@ function sdf(x, y, z) {
   d = smin(d, ell(x, y, z, 0, 0.72, 0.148, 0.018, 0.018, 0.012), 0.008);
   return Math.max(d, -y);
 }
+
+// 形はご提供の3Dデータ（写真から作った立体）をなめらかにしたものを使う
+import { loadSdfGrid } from './sdfdata.js';
+let dataSdf = null;
+async function prepare() {
+  if (!dataSdf) dataSdf = await loadSdfGrid('megami');
+}
+function sdf(x, y, z) {
+  return Math.max(dataSdf(x, y, z), -y);
+}
+const dataCore = (x, y, z) => dataSdf(x, y, z);
 
 const patternGLSL = `
 float mgHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -163,15 +174,17 @@ export const megami = {
   era: '縄文時代後期前半（約4,000年前）',
   place: '長野県茅野市・中ッ原遺跡',
   available: true,
+  prepare,
   sdf,
-  core,
+  core: dataCore,
   thickness: 0.045,
   voxel: 0.0135,
-  bounds: { min: [-0.48, -0.02, -0.22], max: [0.48, 1.4, 0.26] },
+  bounds: { min: [-0.52, -0.02, -0.29], max: [0.52, 1.4, 0.27] },
+  clearRadius: 0.75,
   height: 1.38,
   patternGLSL,
   bumpStrength: 1.0,
-  clayColor: [0.4, 0.32, 0.24],
+  clayColor: [0.3, 0.235, 0.18],
   innerColor: [0.28, 0.22, 0.16],
   fractureColor: [0.62, 0.47, 0.34],
   description: [
@@ -179,5 +192,5 @@ export const megami = {
     '中が空洞の「中空土偶」で、お腹の同心円や腕の先の渦巻など、体には細い線の文様がていねいに刻まれています。大きくふくらんだ脚は、ズボンをはいているようにも見えます。',
     '集落の墓とみられる穴の中から、右脚が外れた状態で見つかりました。2014年に国宝に指定され、縄文のビーナスとともに茅野市尖石縄文考古館に収蔵されています。',
   ],
-  note: 'このゲームの3Dモデルは、仮面の女神の特徴をもとにプログラムで生成したもので、特定の実物を正確に再現したものではありません。',
+  note: 'このステージの形は、実物の写真から作られた3Dデータをもとにしています（文様は写真を参考に描いたもの）。正確な実測データではありません。',
 };

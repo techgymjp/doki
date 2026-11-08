@@ -162,6 +162,7 @@ export class Game {
   async load(def, onProgress = () => {}) {
     this.def = def;
     await nextFrame();
+    if (def.prepare) await def.prepare();
     if (def.type === 'sdf') {
       this.materials = [makePatternMaterial(def)];
     } else {

@@ -31,62 +31,81 @@ function cap(x, y, z, ax, ay, az, bx, by, bz, r) {
 }
 
 // 胴体の主な部分（ここから内側を空洞にする）
-const TOP = (z) => 1.36 - 0.3 * z; // 頭の上の平らな面（後ろが少し高い）
-function core(x, y, z) {
+const HZ = 0.0;                              // 頭は首より少し前に出る
+const TOP = (zh) => 1.335 + 0.22 * zh;         // 帽子の上の面（前が高く、後ろが低い）
+// 胴の輪郭（正面の半幅 w・奥行きの半分 d・前後の中心 zc）を高さごとに
+const PROF = [
+  [0.2, 0.2, 0.15, -0.015],
+  [0.34, 0.27, 0.19, -0.03],   // 腰〜太ももがいちばん広い
+  [0.46, 0.26, 0.19, -0.03],
+  [0.58, 0.2, 0.16, -0.015],
+  [0.68, 0.145, 0.14, -0.01],
+  [0.76, 0.13, 0.12, -0.005],   // くびれ
+  [0.86, 0.19, 0.1, 0.0],
+  [0.93, 0.215, 0.095, 0.0],   // 肩
+  [0.985, 0.12, 0.08, 0.01],
+  [1.04, 0.09, 0.085, 0.03],   // 太く短い首
+  [1.1, 0.088, 0.078, 0.045],
+];
+function torso(x, y, z) {
+  const yc = clamp(y, PROF[0][0], PROF[PROF.length - 1][0]);
+  let k = 0;
+  while (k < PROF.length - 2 && PROF[k + 1][0] < yc) k++;
+  const A = PROF[k], B = PROF[k + 1], t = (yc - A[0]) / (B[0] - A[0]);
+  const s = t * t * (3 - 2 * t);
+  const w = A[1] + (B[1] - A[1]) * s, dd = A[2] + (B[2] - A[2]) * s, zc = A[3] + (B[3] - A[3]) * s;
+  const e = (Math.hypot(x / w, (z - zc) / dd) - 1) * Math.min(w, dd);
+  const dy = Math.abs(y - yc);
+  return e > 0 ? Math.hypot(e, dy) : Math.max(e, dy > 0 ? dy : -1);
+}
+function procCore(x, y, z) {
   const ax = Math.abs(x);
-  let d = cap(ax, y, z, 0.1, 0.06, 0.0, 0.105, 0.24, 0.0, 0.098);           // 太く短い脚
-  d = smin(d, ell(ax, y, z, 0.135, 0.42, -0.005, 0.15, 0.15, 0.15), 0.05);  // 大きく丸い太もも
-  d = smin(d, ell(x, y, z, 0, 0.5, -0.04, 0.22, 0.14, 0.17), 0.05);         // 腰
-  d = smin(d, ell(x, y, z, 0, 0.74, 0, 0.11, 0.13, 0.085), 0.07);            // くびれ
-  d = smin(d, ell(x, y, z, 0, 0.92, -0.005, 0.25, 0.1, 0.07), 0.08);        // 平たく幅の広い肩
-  d = smin(d, cap(x, y, z, 0, 0.95, -0.005, 0, 1.1, 0.0, 0.085), 0.05);     // 太く短い首
-  d = smin(d, ecyl(x, y, z, 1.26, 0.18, 0.15, 0.14, -0.025, 0.05), 0.03);   // 頭（上の角が丸い帽子）
-  d = Math.max(d, y - TOP(z));
+  const zh = z - HZ;
+  let d = cap(ax, y, z, 0.125, 0.06, 0.0, 0.13, 0.28, -0.01, 0.112);        // 太く短い脚
+  d = smin(d, torso(x, y, z), 0.04);
+  d = smin(d, ell(ax, y, z, 0.12, 0.37, 0.035, 0.14, 0.13, 0.15), 0.05);   // 前にふくらむ太もも
+  d = smin(d, ell(ax, y, z, 0.08, 0.42, -0.12, 0.13, 0.15, 0.12), 0.06);   // 後ろへ張り出したお尻
+  d = smin(d, ecyl(x, y, zh, 1.24, 0.175, 0.145, 0.13, -0.02, 0.05), 0.03);  // 帽子
+  d = Math.max(d, y - TOP(zh));
+  d = Math.max(d, -ell(x, y, zh, 0, 1.2, 0.17, 0.118, 0.118, 0.15));       // 正面の丸いくぼみ（内側の壁もそれに沿う）
   return d;
 }
 
-function sdf(x, y, z) {
+function procSdf(x, y, z) {
   const ax = Math.abs(x);
-  let d = core(x, y, z);
-  d = smin(d, ell(ax, y, z, 0.1, 0.03, 0.005, 0.1, 0.035, 0.1), 0.02);      // 足の裏
-  d = smin(d, ell(ax, y, z, 0.085, 0.46, -0.135, 0.12, 0.13, 0.1), 0.05);   // 張り出したお尻
-  d = smin(d, ell(ax, y, z, 0.235, 0.93, -0.005, 0.045, 0.06, 0.05), 0.05); // 短くずんぐりした腕
-  d = smin(d, ell(ax, y, z, 0.06, 0.885, 0.065, 0.028, 0.028, 0.026), 0.02); // 乳房
+  const zh = z - HZ;
+  let d = procCore(x, y, z);
+  d = smin(d, ell(ax, y, z, 0.125, 0.03, 0.0, 0.118, 0.035, 0.115), 0.02);  // 足の裏
+  d = smin(d, ell(ax, y, z, 0.225, 0.915, 0.0, 0.05, 0.06, 0.055), 0.05);   // 短い腕
+  d = smin(d, ell(ax, y, z, 0.055, 0.87, 0.097, 0.028, 0.028, 0.026), 0.015); // 乳房
   // 前に垂れ下がる大きなお腹と、その下のへその穴
-  d = smin(d, ell(x, y, z, 0, 0.66, 0.075, 0.1, 0.115, 0.1), 0.05);
-  d = smin(d, ell(x, y, z, 0, 0.6, 0.12, 0.065, 0.06, 0.06), 0.04);
-  d = Math.max(d, -ell(x, y, z, 0, 0.585, 0.18, 0.012, 0.012, 0.03));
-  // 帽子の正面は、つばの下を大きく開ける。顔はつばより奥にある
-  {
-    const qx = Math.abs(x) - 0.125 + 0.04, qy = Math.abs(y - 1.11) - 0.135 + 0.04, qz = Math.abs(z - 0.17) - 0.16 + 0.04;
-    const open = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.04;
-    d = Math.max(d, -open);
-  }
-  // 顔：小さなハート形、つり上がった切れ長の目、とがった鼻、口
-  // ハート形の平たい顔（上が左右にふくらみ、あごがとがる）
-  const h2 = Math.min(
-    Math.hypot(ax - 0.03, y - 1.185) - 0.055,
-    taper2d(x, y, 0, 1.16, 0, 1.105, 0.072, 0.04),
-  );
-  const zf = 0.11 - 1.8 * x * x;                      // 正面はゆるやかにふくらむ
-  const dz = Math.max(z - zf, 0.02 - z);
-  let face = Math.hypot(Math.max(h2, 0), Math.max(dz, 0)) + Math.min(Math.max(h2, dz), 0) - 0.006;
-  face = smin(face, cap(x, y, z, 0, 1.19, zf - 0.005, 0, 1.162, zf + 0.022, 0.012), 0.006);        // とがった鼻
-  face = Math.max(face, -cap(ax, y, z, 0.02, 1.178, zf + 0.004, 0.064, 1.2, zf - 0.004, 0.0065));  // つり目
-  face = Math.max(face, -ell(x, y, z, 0, 1.112, zf, 0.01, 0.009, 0.02));                          // 口
-  // 顔のまわり（帽子の内側）をふさぐ壁
-  {
-    const qx = Math.abs(x) - 0.14, qy = Math.abs(y - 1.18) - 0.075, qz = Math.abs(z + 0.005) - 0.06;
-    const wall = Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - 0.01;
-    d = smin(d, wall, 0.02);
-  }
-  d = smin(d, face, 0.015);
-  // 耳の穴
-  d = Math.max(d, -ell(ax, y, z, 0.16, 1.21, -0.02, 0.02, 0.012, 0.012));
+  d = smin(d, ell(x, y, z, 0, 0.62, 0.1, 0.11, 0.13, 0.1), 0.05);
+  d = smin(d, ell(x, y, z, 0, 0.54, 0.15, 0.065, 0.06, 0.06), 0.04);
+  d = Math.max(d, -ell(x, y, z, 0, 0.53, 0.21, 0.012, 0.012, 0.03));
+  // 太ももの間のみぞ（お腹の下）
+  d = Math.max(d, -Math.max(ax - 0.006, Math.abs(y - 0.4) - 0.1, 0.12 - z)); // 前側だけ浅く
+  // 帽子の正面を丸くくぼませる（つばが顔のまわりを丸く囲む）
+  d = Math.max(d, -ell(x, y, zh, 0, 1.2, 0.17, 0.118, 0.118, 0.15));
+  // 顔：丸みをおびて前にせり出したハート形（上が左右にふくらみ、あごが少しとがる）
+  let face = ell(ax, y, zh, 0.036, 1.215, 0.05, 0.072, 0.066, 0.11);
+  face = smin(face, ell(x, y, zh, 0, 1.16, 0.05, 0.065, 0.062, 0.105), 0.02);
+  face = smin(face, cap(x, y, zh, 0, 1.23, 0.13, 0, 1.19, 0.18, 0.016), 0.012);   // とがった鼻
+  // つり目（細い切れ込み）と口
+  const slit = (ax0, ay0, bx0, by0, r) => {
+    const px = ax - ax0, py = y - ay0, vx = bx0 - ax0, vy = by0 - ay0;
+    const t = clamp((px * vx + py * vy) / (vx * vx + vy * vy), 0, 1);
+    return Math.max(Math.hypot(px - vx * t, py - vy * t) - r, 0.11 - zh);
+  };
+  face = Math.max(face, -slit(0.022, 1.203, 0.066, 1.225, 0.006));
+  face = Math.max(face, -slit(0, 1.142, 0, 1.144, 0.009));
+  d = smin(d, face, 0.012);
+  // 耳（丸い耳たぶと穴）
+  d = smin(d, ell(ax, y, zh, 0.15, 1.12, 0.02, 0.032, 0.035, 0.03), 0.01);
+  d = Math.max(d, -ell(ax, y, zh, 0.17, 1.12, 0.02, 0.012, 0.014, 0.012));
   // 頭のてっぺん：渦巻の溝と、まん中の穴
-  const top = TOP(z);
+  const top = TOP(zh);
   if (y > top - 0.04) {
-    const qx = x, qz = (z + 0.025) * 1.1;
+    const qx = x, qz = (zh + 0.02) * 1.1;
     const r = Math.hypot(qx, qz);
     if (r < 0.15) {
       const pitch = 0.038;
@@ -98,6 +117,35 @@ function sdf(x, y, z) {
     d = Math.max(d, -Math.max(r - 0.022, top - 0.06 - y));
   }
   return Math.max(d, -y);
+}
+
+
+// ---- 体の形はご提供の3Dデータ（実物の写真から作られたもの）を使う ----
+//   data/venus-sdf.json / .bin : 3Dデータを距離の格子に変換したもの（Int8）
+//   首から上（帽子・顔・渦巻）は、細部をはっきりさせるため形を作り込んだものにつなぐ
+import { loadSdfGrid } from './sdfdata.js';
+let dataSdf = null;
+async function prepare() {
+  if (!dataSdf) dataSdf = await loadSdfGrid('venus');
+}
+const mixHead = (y) => { const t = clamp((y - 1.0) / 0.08, 0, 1); return t * t * (3 - 2 * t); };
+function sdf(x, y, z) {
+  const t = mixHead(y);
+  let d;
+  if (t <= 0) d = dataSdf(x, y, z);
+  else if (t >= 1) d = procSdf(x, y, z);
+  else d = dataSdf(x, y, z) * (1 - t) + procSdf(x, y, z) * t;
+  // 写真から：小さな乳房と、垂れたお腹の先のへその穴
+  const ax = Math.abs(x);
+  if (y > 0.75 && y < 0.98) d = smin(d, ell(ax, y, z, 0.06, 0.865, 0.118, 0.026, 0.026, 0.024), 0.012);
+  if (y > 0.45 && y < 0.62) d = Math.max(d, -ell(x, y, z, 0, 0.545, 0.235, 0.011, 0.011, 0.04));
+  return Math.max(d, -y);
+}
+function core(x, y, z) {
+  const t = mixHead(y);
+  if (t <= 0) return dataSdf(x, y, z);
+  if (t >= 1) return procCore(x, y, z);
+  return dataSdf(x, y, z) * (1 - t) + procCore(x, y, z) * t;
 }
 
 // 外面：よく磨かれた肌と、きらきら光る雲母、頭頂の渦巻文
@@ -114,23 +162,14 @@ float vnSpiral(vec2 q, float pitch, float rmax) {
 float patH(vec3 p) {
   float h = 0.0;
   // 顔：つり上がった切れ長の目と口（細い溝）
-  if (p.z > 0.03 && abs(p.x) < 0.08 && p.y > 1.09 && p.y < 1.23) {
-    vec2 a = vec2(0.018, 1.177), b = vec2(0.066, 1.199);
-    vec2 q = vec2(abs(p.x), p.y);
-    float t = clamp(dot(q - a, b - a) / dot(b - a, b - a), 0.0, 1.0);
-    float de = length(q - a - (b - a) * t);
-    float eye = 1.0 - smoothstep(0.0025, 0.0055 - t * 0.002, de);
-    float mouth = 1.0 - smoothstep(0.004, 0.007, length(vec2(p.x, p.y - 1.115)));
-    return -max(eye, mouth) * 2.2 * 0.0011;
-  }
   // 頭頂：大きな渦巻ひとつ
-  if (p.y > 1.31 - 0.3 * p.z) {
-    vec2 q = vec2(p.x, (p.z + 0.025) * 1.1);
+  if (p.y > 1.31 + 0.22 * (p.z - 0.045)) {
+    vec2 q = vec2(p.x, (p.z - 0.045 + 0.02) * 1.1);
     h -= vnSpiral(q, 0.038, 0.145) * 1.5;   // 形の溝と同じ位置をくっきりさせる
   }
   // 頭の側面〜後ろの帯：上下の沈線と、左右一対の渦巻
   if (p.y > 1.16 && p.y < 1.4 && p.z < 0.06) {
-    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - (1.335 - 0.3 * p.z)));
+    h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - (1.31 + 0.22 * (p.z - 0.045))));
     h -= 1.0 - smoothstep(0.003, 0.006, abs(p.y - 1.17));
     if (p.z < -0.03) {
       float sx = p.x >= 0.0 ? 1.0 : -1.0;
@@ -143,15 +182,16 @@ float patH(vec3 p) {
   return h * 0.0011;
 }
 vec3 patC(vec3 p, float h) {
-  vec3 c = vec3(1.0);
-  // 黒っぽい焼きむら
-  float m = sin(p.x * 13.0 + 2.0 * sin(p.y * 7.0)) * sin(p.y * 9.0 + p.z * 11.0);
-  c *= 0.9 + 0.12 * m;
-  // 雲母のきらめき
+  // 写真の色：赤みのある素焼きの茶色に、黒っぽいすすのまだら（とくに腰から下）
+  float n1 = sin(p.x * 11.0 + 3.0 * sin(p.y * 7.0 + p.z * 5.0)) * sin(p.y * 9.0 + p.z * 13.0 + 1.7);
+  float n2 = sin(p.x * 27.0 + p.z * 19.0 + 4.0 * sin(p.y * 15.0)) * 0.5;
+  float soot = smoothstep(0.25, 0.8, n1 + n2 + (p.y < 0.55 ? 0.35 : -0.25));
+  vec3 c = mix(vec3(1.0), vec3(0.5, 0.48, 0.5), soot * 0.85);
+  c *= 0.94 + 0.12 * vnHash(floor(p * 60.0));
+  // 粘土にまじる雲母のきらめきと白い砂粒
   float s = vnHash(floor(p * 420.0));
-  if (s > 0.993) c *= 2.4;
-  else if (s > 0.985) c *= 1.5;
-  c *= 1.0 - clamp(-h / 0.0011, 0.0, 1.0) * 0.32;
+  if (s > 0.994) c *= 2.0; else if (s > 0.986) c *= 1.35;
+  c *= 1.0 - clamp(-h / 0.0011, 0.0, 1.0) * 0.3;
   return c;
 }
 `;
@@ -165,15 +205,16 @@ export const venus = {
   era: '縄文時代中期（約5,000年前）',
   place: '長野県茅野市・棚畑遺跡',
   available: true,
+  prepare,
   sdf,
   core,
   thickness: 0.055,
   voxel: 0.0105,
-  bounds: { min: [-0.34, -0.02, -0.3], max: [0.34, 1.43, 0.27] },
+  bounds: { min: [-0.36, -0.02, -0.32], max: [0.36, 1.43, 0.32] },
   height: 1.36,
   patternGLSL,
   bumpStrength: 1.0,
-  clayColor: [0.72, 0.44, 0.3],
+  clayColor: [0.8, 0.47, 0.31],
   innerColor: [0.48, 0.3, 0.21],
   fractureColor: [0.8, 0.58, 0.42],
   description: [
@@ -181,5 +222,5 @@ export const venus = {
     'ハート形の顔に切れ長のつり上がった目、平らな頭の上には渦巻の文様があります。ふくらんだお腹と大きく張り出したお尻は、子どもを宿した女性の姿を表していると考えられています。表面はていねいに磨かれ、粘土に混じった雲母がきらきらと光ります。',
     '1995年に土偶として初めて国宝に指定され、茅野市尖石（とがりいし）縄文考古館に収蔵されています。',
   ],
-  note: 'このゲームの3Dモデルは、縄文のビーナスの特徴をもとにプログラムで生成したもので、特定の実物を正確に再現したものではありません。',
+  note: 'このステージの体の形は、実物の写真から作られた3Dデータをもとにしています（頭部は特徴をもとに作り込んだもの）。正確な実測データではありません。',
 };
