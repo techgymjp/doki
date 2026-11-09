@@ -23,7 +23,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .logo h1 { font-family: var(--mincho); font-weight: 900; font-size: clamp(44px, 9vw, 92px); letter-spacing: .18em; margin: 0; line-height: 1.1; background: linear-gradient(180deg, #ffe2b5, #e0793a 70%, #a8401c); -webkit-background-clip: text; background-clip: text; color: transparent; padding-left: .18em; }
 .logo .sub { font-family: var(--mincho); font-size: clamp(16px, 2.6vw, 24px); letter-spacing: .5em; margin: 6px 0 0; color: var(--muted); padding-left: .5em; }
 .title-bottom { pointer-events: auto; align-self: center; width: min(560px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; flex-direction: column; gap: 10px; }
-.artifact-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.artifact-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .artifact { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 10px; padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
 .artifact .kind { font-size: 11px; color: var(--muted); }
 .artifact .nm { font-family: var(--mincho); font-weight: 700; font-size: 14px; }
@@ -186,3 +186,16 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* アプリ版：画面の下中央に出る広告バナー（高さ 50dp）とボタンが重ならないようにする */
 body.app #title { padding-bottom: calc(env(safe-area-inset-bottom) + 66px); }
 body.app .modal { padding-bottom: 66px; }
+/* 英語表示：ロゴは字間をつめ、長い名前は折り返す */
+html[lang=en] .logo h1 { letter-spacing: .04em; padding-left: .04em; font-size: clamp(40px, 10vw, 84px); }
+html[lang=en] .logo .sub { letter-spacing: .2em; padding-left: .2em; }
+html[lang=en] .artifact .nm { font-size: 12px; text-align: center; line-height: 1.25; }
+html[lang=en] .artifact .kind { font-size: 10px; }
+html[lang=en] .hud-buttons button { font-size: 12px; }
+.romaji { display: block; font-family: var(--gothic); font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: .04em; }
+.artifact { min-width: 0; }
+.stat b { white-space: nowrap; }
+html[lang=en] .hud-name { min-width: 0; }
+html[lang=en] .hud-name strong { font-size: 15px; line-height: 1.2; }
+html[lang=en] .stat { min-width: 60px; padding: 6px 9px; }
+html[lang=en] .artifact .nm { white-space: normal; overflow-wrap: anywhere; }

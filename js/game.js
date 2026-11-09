@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { t } from './i18n.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildShell, paintShellTextures, makeProfile } from './shell.js';
 import { buildSdfPieces, makePatternMaterial } from './sdfbuild.js';
@@ -447,8 +448,8 @@ export class Game {
     if (d.magnet) {
       sfx.playDeny();
       this.ev.onToast?.(this._placedCount() === 0
-        ? 'まずは底や足のピースから！'
-        : 'つながるピースから先にはめよう');
+        ? t('toast.bottomFirst')
+        : t('toast.connectFirst'));
     }
     this._setGlow(p, 0x000000);
     // 机の上に置く。器の上や遠すぎる所で離したときは元の場所に戻す

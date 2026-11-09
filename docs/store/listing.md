@@ -1,7 +1,7 @@
 # Google Play ストア掲載情報（下書き）
 
 Play Console の「ストアの掲載情報」に貼り付けて使います。既定の言語を日本語にし、「翻訳を管理」から英語（en-US）を追加してください。
-ゲームの画面は日本語だけなので、英語の掲載情報でも同じスクリーンショットを使います（説明文に「日本語のみ」と書いてあります）。
+アプリは日本語と英語に対応しています（端末の言語が日本語なら日本語、それ以外は英語。タイトル画面で切りかえ可）。英語の掲載情報には英語の画面のスクリーンショットを使います。
 
 ## 画像（このフォルダ）
 
@@ -11,7 +11,7 @@ Play Console の「ストアの掲載情報」に貼り付けて使います。�
 | フィーチャー グラフィック（日本語） | `feature-graphic.png` | 1024 × 500 |
 | フィーチャー グラフィック（英語） | `feature-graphic-en.png` | 1024 × 500 |
 | スマートフォンのスクリーンショット（日本語） | `ja-1-title.png` 〜 `ja-5-result.png` | 1080 × 1920 |
-| スマートフォンのスクリーンショット（英語） | `en-1-title.png` 〜 `en-5-result.png`（ゲームが日本語だけなので、日本語と同じ画面） | 1080 × 1920 |
+| スマートフォンのスクリーンショット（英語） | `en-1-title.png` 〜 `en-5-result.png` | 1080 × 1920 |
 
 1. タイトル（火焔型土器をぐるっと回して観察）
 2. ステージ一覧（9 ステージ）
@@ -71,6 +71,7 @@ Play Console の「ストアの掲載情報」に貼り付けて使います。�
 ・広告を見ると次のピースを自動ではめる「おまかせ」（1 ステージ 5 回まで）
 ・結果をシェアできる
 ・オフラインでも遊べる（広告・シェアは通信が必要）
+・日本語・英語対応
 
 ※ 3D モデルは各出土品の特徴をもとに作ったもので、実物を正確に再現したものではありません。
 
@@ -129,7 +130,7 @@ Clear a stage to unlock the next one.
 - "Auto": watch an ad to snap the next piece into place (up to 5 times per stage)
 - Share your result
 - Playable offline (ads and sharing need a connection)
-- The game is in Japanese only
+- Available in English and Japanese
 
 * The 3D models are based on the features of each artifact and are not exact copies of the real objects.
 ```

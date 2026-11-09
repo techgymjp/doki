@@ -1,6 +1,14 @@
 import { Game } from './game.js';
 import { STAGES } from './artifacts/index.js';
 import * as sfx from './audio.js';
+import { EN } from './artifacts/en.js';
+import { t, lang, applyStatic, setLang } from './i18n.js';
+
+applyStatic();
+// 言語に合わせたステージの名前・説明
+// 名前とよみ（日本語はルビ、英語は名前の上に小さくローマ字）
+const nameHTML = (c) => (lang === 'en' ? `<span class="romaji">${c.ruby}</span>${c.name}` : `<ruby>${c.name}<rt>${c.ruby}</rt></ruby>`);
+const S = (i) => (lang === 'en' ? { ...STAGES[i], ...EN[STAGES[i].id] } : STAGES[i]);
 
 const $ = (id) => document.getElementById(id);
 
@@ -84,27 +92,28 @@ const toggleBtn = $('stage-toggle');
 function setListOpen(on) {
   titleBottom.classList.toggle('open', on);
   toggleBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
-  toggleBtn.textContent = on ? 'とじる ▴' : 'ステージを選ぶ ▾';
+  toggleBtn.textContent = on ? t('title.toggleClose') : t('title.toggleOpen');
 }
 toggleBtn.addEventListener('click', () => setListOpen(!titleBottom.classList.contains('open')));
 
 function renderList() {
   ui.list.innerHTML = '';
-  STAGES.forEach((a, i) => {
+  STAGES.forEach((a0, i) => {
+    const a = S(i);
     const open = isUnlocked(i);
     const cleared = loadCleared().has(a.id);
     const b = document.createElement('button');
     b.className = 'artifact' + (i === stageIndex ? ' selected' : '') + (open ? '' : ' soon');
     b.disabled = !open;
-    const tag = !a.available ? '準備中' : !open ? '🔒' : cleared ? 'クリア済み' : '';
-    b.innerHTML = `<span class="kind">ステージ${i + 1}・${a.kind}</span><span class="nm">${a.name}</span>${tag ? `<span class="soon-tag">${tag}</span>` : ''}`;
+    const tag = !a.available ? t('stage.soon') : !open ? '🔒' : cleared ? t('stage.cleared') : '';
+    b.innerHTML = `<span class="kind">${t('stage.label', { n: i + 1, kind: a.kind })}</span><span class="nm">${a.name}</span>${tag ? `<span class="soon-tag">${tag}</span>` : ''}`;
     b.addEventListener('click', () => { setListOpen(false); selectStage(i); });
     ui.list.appendChild(b);
   });
-  const cur = STAGES[stageIndex];
+  const cur = S(stageIndex);
   const maxLv = Math.max(...STAGES.map((st) => st.level || 1));
   const stars = '★'.repeat(cur.level || 1) + '☆'.repeat(maxLv - (cur.level || 1));
-  ui.info.innerHTML = `<ruby>${cur.name}<rt>${cur.ruby}</rt></ruby><span>${cur.era}｜${cur.place}</span><span class="level">難易度 ${stars}｜${cur.pieces}ピース</span>`;
+  ui.info.innerHTML = `${nameHTML(cur)}<span>${cur.era}${lang === 'en' ? ' | ' : '｜'}${cur.place}</span><span class="level">${t('stage.level', { stars, n: cur.pieces })}</span>`;
 }
 
 async function selectStage(i) {
@@ -112,7 +121,7 @@ async function selectStage(i) {
   renderList();
   if (loadedIndex === i) return;
   ui.start.disabled = true;
-  ui.start.textContent = '読み込み中…';
+  ui.start.textContent = t('title.loading');
   ui.loading.hidden = false;
   ui.loading.classList.remove('hide');
   await game.load(STAGES[i], (p) => { $('load-bar').style.width = `${Math.round(p * 100)}%`; });
@@ -122,14 +131,14 @@ async function selectStage(i) {
   ui.loading.classList.add('hide');
   setTimeout(() => { ui.loading.hidden = true; }, 500);
   ui.start.disabled = false;
-  ui.start.textContent = '復元スタート（割る）';
+  ui.start.textContent = t('title.start');
 }
 
 function startStage() {
-  const cur = STAGES[stageIndex];
+  const cur = S(stageIndex);
   ui.result.hidden = true;
   ui.hud.hidden = false;
-  $('hud-kind').textContent = `ステージ${stageIndex + 1}・${cur.kind}`;
+  $('hud-kind').textContent = t('stage.label', { n: stageIndex + 1, kind: cur.kind });
   $('hud-title').textContent = cur.name;
   $('hud-count').textContent = `0 / ${cur.pieces}`;
   $('hud-time').textContent = '0:00';
@@ -165,11 +174,11 @@ $('btn-ghost').addEventListener('click', (e) => e.currentTarget.classList.toggle
 $('btn-view').addEventListener('click', () => game.resetView(true));
 $('btn-sound').addEventListener('click', (e) => {
   sfx.setMuted(!sfx.isMuted());
-  e.currentTarget.textContent = sfx.isMuted() ? '音 OFF' : '音 ON';
+  e.currentTarget.textContent = sfx.isMuted() ? t('hud.soundOff') : t('hud.soundOn');
 });
 $('btn-bgm').addEventListener('click', (e) => {
   sfx.setBgmMuted(!sfx.isBgmMuted());
-  e.currentTarget.textContent = sfx.isBgmMuted() ? 'BGM OFF' : 'BGM ON';
+  e.currentTarget.textContent = sfx.isBgmMuted() ? t('hud.bgmOff') : t('hud.bgmOn');
 });
 $('btn-menu').addEventListener('click', openPause);
 
@@ -180,7 +189,7 @@ function openPause() {
   if (!inPlay()) { goTitle(); return; }   // 完成後に「ながめる」中ならタイトルへ
   game.setPaused(true);
   sfx.setTicking(false);
-  $('pause-title').textContent = STAGES[stageIndex].name;
+  $('pause-title').textContent = S(stageIndex).name;
   $('pause').hidden = false;
 }
 async function resumePlay() {
@@ -205,7 +214,7 @@ function updateAutoBtn() {
   const on = Ads.canReward;
   autoBtn.hidden = !on;
   $('howto-auto').hidden = !on;
-  autoBtn.textContent = `おまかせ ${AUTO_MAX - game.autos}`;
+  autoBtn.textContent = t('hud.auto', { n: AUTO_MAX - game.autos });
   autoBtn.disabled = game.autos >= AUTO_MAX;
 }
 autoBtn.addEventListener('click', async () => {
@@ -214,7 +223,7 @@ autoBtn.addEventListener('click', async () => {
   const r = await Ads.showRewarded();
   game.setPaused(false);
   if (r === 'rewarded') game.autoPlace();
-  else if (r === 'unavailable') toast('いまは広告を読み込めません');
+  else if (r === 'unavailable') toast(t('toast.noAd'));
   updateAutoBtn();
 });
 
@@ -239,6 +248,21 @@ if (App) {
 // ---- タイトル画面のバージョンと広告の設定 ----
 if (window.APP_VERSION && window.APP_VERSION !== 'dev') $('build-info').textContent = window.APP_VERSION;
 Ads.initDone.then(() => { if (Ads.privacyOptionsRequired) $('ad-privacy').hidden = false; updateAutoBtn(); });
+// 言語の切りかえ（タイトル画面）
+function refreshTexts() {
+  renderList();
+  setListOpen(titleBottom.classList.contains('open'));
+  ui.start.textContent = ui.start.disabled ? t('title.loading') : t('title.start');
+  $('btn-sound').textContent = sfx.isMuted() ? t('hud.soundOff') : t('hud.soundOn');
+  $('btn-bgm').textContent = sfx.isBgmMuted() ? t('hud.bgmOff') : t('hud.bgmOn');
+  nativeShareLabel();
+  updateAutoBtn();
+}
+$('lang-btn').addEventListener('click', (e) => {
+  e.preventDefault();
+  setLang(lang === 'ja' ? 'en' : 'ja');
+  refreshTexts();
+});
 $('ad-privacy-link').addEventListener('click', (e) => { e.preventDefault(); Ads.showPrivacyOptions(); });
 document.querySelector('.legal a[target=_blank]').addEventListener('click', (e) => {
   if (!native) return;
@@ -270,21 +294,21 @@ function backToTitle() {
 
 function showResult(r) {
   lastResult = r;
-  const cur = STAGES[stageIndex];
+  const cur = S(stageIndex);
   saveCleared(cur.id);
-  $('result-title').innerHTML = `<ruby>${cur.name}<rt>${cur.ruby}</rt></ruby>`;
-  $('result-era').textContent = `ステージ${stageIndex + 1}｜${cur.era}｜${cur.place}`;
+  $('result-title').innerHTML = nameHTML(cur);
+  $('result-era').textContent = t('result.era', { n: stageIndex + 1, era: cur.era, place: cur.place });
   $('result-time').textContent = fmt(r.time);
   $('result-pieces').textContent = `${r.pieces}`;
-  $('result-hints').textContent = `${r.hints}回`;
-  $('result-autos').textContent = `${r.autos || 0}回`;
+  $('result-hints').textContent = t('result.times', { n: r.hints });
+  $('result-autos').textContent = t('result.times', { n: r.autos || 0 });
   $('result-autos-box').hidden = !(Ads.canReward || r.autos);
   $('result-desc').innerHTML = cur.description.map((t) => `<p>${t}</p>`).join('') + `<p class="note">${cur.note}</p>`;
   const next = nextPlayable();
   const nb = $('btn-next');
   nb.hidden = false;
   nb.disabled = next < 0;
-  nb.textContent = next < 0 ? '次のステージは準備中' : `次のステージへ（${STAGES[next].name}）`;
+  nb.textContent = next < 0 ? t('result.noNext') : t('result.next', { name: S(next).name });
   ui.result.hidden = false;
   const wide = innerWidth >= 1000 && innerWidth > innerHeight;
   game.setViewShift(wide ? 0.17 : 0, wide ? 0 : 0.18);
@@ -294,10 +318,10 @@ function showResult(r) {
 const SHARE_URL = 'https://techgym.jp/column/claude-code-game-doki/';
 let lastResult = null;
 function shareText() {
-  const cur = STAGES[stageIndex];
-  const t = lastResult ? fmt(lastResult.time) : '';
-  const auto = lastResult && lastResult.autos ? `（おまかせ${lastResult.autos}回）` : '';
-  return `「復元せよ 土器・土偶・埴輪」でステージ${stageIndex + 1}「${cur.name}」を${t}${auto}で復元しました！ #復元せよ`;
+  const cur = S(stageIndex);
+  const time = lastResult ? fmt(lastResult.time) : '';
+  const auto = lastResult && lastResult.autos ? t('share.auto', { n: lastResult.autos }) : '';
+  return t('share.text', { n: stageIndex + 1, name: cur.name, time, auto });
 }
 const openShare = openExternal;
 $('share-x').addEventListener('click', () => openShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText())}&url=${encodeURIComponent(SHARE_URL)}`));
@@ -305,20 +329,21 @@ $('share-line').addEventListener('click', () => openShare(`https://social-plugin
 $('share-fb').addEventListener('click', () => openShare(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}`));
 // アプリでは「リンクをコピー」の代わりに、Android の共有メニューを出す
 const NativeShare = plugin('Share');
-if (NativeShare) $('share-copy').textContent = 'ほかのアプリ';
+const nativeShareLabel = () => { if (NativeShare) $('share-copy').textContent = t('share.native'); };
+nativeShareLabel();
 $('share-copy').addEventListener('click', async () => {
   const text = `${shareText()} ${SHARE_URL}`;
   if (NativeShare) {
-    try { await NativeShare.share({ title: '復元せよ 土器・土偶・埴輪', text: shareText(), url: SHARE_URL, dialogTitle: '結果をシェア' }); } catch (e) { /* キャンセル */ }
+    try { await NativeShare.share({ title: t('doc.title'), text: shareText(), url: SHARE_URL, dialogTitle: t('share.dialog') }); } catch (e) { /* キャンセル */ }
     return;
   }
   try {
     if (navigator.share) { await navigator.share({ text: shareText(), url: SHARE_URL }); return; }
     await navigator.clipboard.writeText(text);
-    toast('リンクをコピーしました');
+    toast(t('toast.copied'));
   } catch (e) {
     if (e && e.name === 'AbortError') return;
-    window.prompt('コピーしてください', text);
+    window.prompt(t('prompt.copy'), text);
   }
 });
 
@@ -338,5 +363,5 @@ $('btn-title').addEventListener('click', goTitle);
 
 // ---- 起動 ----
 const startIdx = Math.max(0, Math.min(STAGES.length - 1, (parseInt(params.get('stage'), 10) || 1) - 1));
-renderList();
+refreshTexts();
 selectStage(isUnlocked(startIdx) ? startIdx : 0);

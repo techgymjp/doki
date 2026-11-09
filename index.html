@@ -28,8 +28,8 @@
 <!-- タイトル（スタート前は完成した姿を見せる） -->
 <section id="title" class="panel">
   <header class="logo">
-    <h1>復元せよ</h1>
-    <p class="sub">土器・土偶・埴輪</p>
+    <h1 data-i18n="logo.title">復元せよ</h1>
+    <p class="sub" data-i18n="logo.sub">土器・土偶・埴輪</p>
   </header>
   <div class="title-bottom">
     <div id="artifact-list" class="artifact-list"></div>
@@ -37,10 +37,10 @@
     <button id="stage-toggle" class="stage-toggle" type="button" aria-expanded="false">ステージを選ぶ ▾</button>
     <button id="start-btn" class="primary" disabled>読み込み中…</button>
     <div class="title-sub-actions">
-      <button id="howto-btn" type="button">あそびかた</button>
+      <button id="howto-btn" type="button" data-i18n="title.howto">あそびかた</button>
     </div>
-    <p class="tip">ドラッグ・フリックで回して、じっくり観察しよう</p>
-    <p class="legal"><span id="build-info"></span><a href="https://techgym.jp/privacy-policy/" target="_blank" rel="noopener">プライバシーポリシー</a><span id="ad-privacy" hidden>｜<a href="#" id="ad-privacy-link">広告の設定</a></span></p>
+    <p class="tip" data-i18n="title.tip">ドラッグ・フリックで回して、じっくり観察しよう</p>
+    <p class="legal"><span id="build-info"></span><a href="https://techgym.jp/privacy-policy/" target="_blank" rel="noopener" data-i18n="title.privacy" data-i18n-href="title.privacyUrl">プライバシーポリシー</a><span id="ad-privacy" hidden>｜<a href="#" id="ad-privacy-link" data-i18n="title.adSettings">広告の設定</a></span>｜<a href="#" id="lang-btn" data-i18n="title.lang">English</a></p>
   </div>
 </section>
 
@@ -49,20 +49,20 @@
   <div class="hud-top">
     <div class="hud-name"><span id="hud-kind"></span><strong id="hud-title"></strong></div>
     <div class="hud-stats">
-      <span class="stat"><em>ピース</em><b id="hud-count">0 / 0</b></span>
-      <span class="stat"><em>時間</em><b id="hud-time">0:00</b></span>
+      <span class="stat"><em data-i18n="hud.pieces">ピース</em><b id="hud-count">0 / 0</b></span>
+      <span class="stat"><em data-i18n="hud.time">時間</em><b id="hud-time">0:00</b></span>
     </div>
   </div>
   <div class="hud-buttons">
-    <button id="btn-hint" title="次にはめるピースを光らせる">ヒント</button>
-    <button id="btn-ghost" title="完成形のガイドを表示">ガイド</button>
-    <button id="btn-view" title="視点をもとに戻す">視点</button>
+    <button id="btn-hint" title="次にはめるピースを光らせる" data-i18n="hud.hint" data-i18n-title="hud.hintTitle">ヒント</button>
+    <button id="btn-ghost" title="完成形のガイドを表示" data-i18n="hud.guide" data-i18n-title="hud.guideTitle">ガイド</button>
+    <button id="btn-view" title="視点をもとに戻す" data-i18n="hud.view" data-i18n-title="hud.viewTitle">視点</button>
     <button id="btn-bgm" title="BGM">BGM ON</button>
-    <button id="btn-sound" title="すべての音">音 ON</button>
-    <button id="btn-auto" title="広告を見ると、次のピースを自動ではめます" hidden>おまかせ</button>
-    <button id="btn-menu" title="一時停止">ポーズ</button>
+    <button id="btn-sound" title="すべての音" data-i18n-title="hud.soundTitle">音 ON</button>
+    <button id="btn-auto" title="広告を見ると、次のピースを自動ではめます" data-i18n-title="hud.autoTitle" hidden>おまかせ</button>
+    <button id="btn-menu" title="一時停止" data-i18n="hud.pause" data-i18n-title="hud.pause">ポーズ</button>
   </div>
-  <p id="hud-help" class="hud-help">ピースをドラッグして正しい位置に近づけると<b>ピタッ</b>とはまります。<b>底や足のピース</b>から組み上げよう。<br>何もないところをフリックすると回転できます。</p>
+  <p id="hud-help" class="hud-help" data-i18n="hud.help">ピースをドラッグして正しい位置に近づけると<b>ピタッ</b>とはまります。<b>底や足のピース</b>から組み上げよう。<br>何もないところをフリックすると回転できます。</p>
 </section>
 
 <div id="toast" class="toast" hidden></div>
@@ -71,19 +71,16 @@
 <section id="howto" class="modal" hidden>
   <div class="card">
    <div class="card-scroll">
-    <p class="result-label">あそびかた</p>
-    <h2>こなごなの出土品を復元しよう</h2>
+    <p class="result-label" data-i18n="howto.label">あそびかた</p>
+    <h2 data-i18n="howto.title">こなごなの出土品を復元しよう</h2>
     <div class="desc">
-      <p>「復元スタート」を押すと、出土品がこなごなに割れます。</p>
-      <p>ピースをドラッグして、正しい位置に近づけると<b>ピタッ</b>とはまります。<b>底や足のピース</b>から、下から順に組み上げよう。</p>
-      <p>何もないところをドラッグ・フリックすると、ぐるっと回して見られます。</p>
-      <p><b>ヒント</b>…次にはめるピースの場所が光ります。<br><b>ガイド</b>…完成形がうっすら見えます（難しいステージでは見えにくくなります）。<br><b>視点</b>…見る向きをもとに戻します。</p>
-      <p id="howto-auto" hidden><b>おまかせ</b>…広告を見ると、次のピースを自動ではめます（1ステージ5回まで）。</p>
-      <p>ステージをクリアすると、次のステージが遊べるようになります。</p>
+      <div data-i18n="howto.body"></div>
+      <p id="howto-auto" hidden data-i18n="howto.auto"></p>
+      <p data-i18n="howto.unlock"></p>
     </div>
    </div>
     <div class="result-actions">
-      <button id="howto-close" class="primary">タイトルにもどる</button>
+      <button id="howto-close" class="primary" data-i18n="howto.close">タイトルにもどる</button>
     </div>
   </div>
 </section>
@@ -91,11 +88,11 @@
 <!-- ポーズ -->
 <section id="pause" class="modal" hidden>
   <div class="card pause-card">
-    <p class="result-label">ポーズ中</p>
+    <p class="result-label" data-i18n="pause.label">ポーズ中</p>
     <h2 id="pause-title"></h2>
     <div class="result-actions">
-      <button id="pause-resume" class="primary">つづける</button>
-      <button id="pause-title-btn">タイトルにもどる</button>
+      <button id="pause-resume" class="primary" data-i18n="pause.resume">つづける</button>
+      <button id="pause-title-btn" data-i18n="pause.title">タイトルにもどる</button>
     </div>
   </div>
 </section>
@@ -104,29 +101,29 @@
 <section id="result" class="modal" hidden>
   <div class="card">
    <div class="card-scroll">
-    <p class="result-label">復元完了</p>
+    <p class="result-label" data-i18n="result.label">復元完了</p>
     <h2 id="result-title"></h2>
     <p id="result-era" class="era"></p>
     <div class="result-stats">
-      <div><em>タイム</em><b id="result-time"></b></div>
-      <div><em>ピース</em><b id="result-pieces"></b></div>
-      <div><em>ヒント</em><b id="result-hints"></b></div>
-      <div id="result-autos-box" hidden><em>おまかせ</em><b id="result-autos"></b></div>
+      <div><em data-i18n="result.time">タイム</em><b id="result-time"></b></div>
+      <div><em data-i18n="result.pieces">ピース</em><b id="result-pieces"></b></div>
+      <div><em data-i18n="result.hints">ヒント</em><b id="result-hints"></b></div>
+      <div id="result-autos-box" hidden><em data-i18n="result.autos">おまかせ</em><b id="result-autos"></b></div>
     </div>
     <div id="result-desc" class="desc"></div>
    </div>
     <div class="share" aria-label="結果をシェア">
-      <span class="share-label">シェア</span>
-      <button id="share-x" class="share-btn" type="button" title="Xでシェア">X</button>
-      <button id="share-line" class="share-btn line" type="button" title="LINEで送る">LINE</button>
-      <button id="share-fb" class="share-btn fb" type="button" title="Facebookでシェア">f</button>
-      <button id="share-copy" class="share-btn" type="button" title="リンクをコピー">リンクをコピー</button>
+      <span class="share-label" data-i18n="share.label">シェア</span>
+      <button id="share-x" class="share-btn" type="button" title="Xでシェア" data-i18n-title="share.x">X</button>
+      <button id="share-line" class="share-btn line" type="button" title="LINEで送る" data-i18n-title="share.line">LINE</button>
+      <button id="share-fb" class="share-btn fb" type="button" title="Facebookでシェア" data-i18n-title="share.fb">f</button>
+      <button id="share-copy" class="share-btn" type="button" title="リンクをコピー" data-i18n="share.copy" data-i18n-title="share.copy">リンクをコピー</button>
     </div>
     <div class="result-actions">
       <button id="btn-next" class="primary">次のステージへ</button>
-      <button id="btn-again">もう一度</button>
-      <button id="btn-view-pot">ながめる</button>
-      <button id="btn-title">タイトルへ</button>
+      <button id="btn-again" data-i18n="result.again">もう一度</button>
+      <button id="btn-view-pot" data-i18n="result.view">ながめる</button>
+      <button id="btn-title" data-i18n="result.title">タイトルへ</button>
     </div>
   </div>
 </section>
@@ -134,7 +131,7 @@
 <div id="loading" class="loading">
   <div class="loading-inner">
     <div class="spinner"></div>
-    <p>出土品を準備しています…</p>
+    <p data-i18n="loading.text">出土品を準備しています…</p>
     <div class="bar"><span id="load-bar"></span></div>
   </div>
 </div>

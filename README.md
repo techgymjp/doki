@@ -45,6 +45,7 @@ npx http-server -p 8080
 
 [Capacitor](https://capacitorjs.com/) で Web 版をそのまま Android アプリにしています（パッケージ名 `jp.techgym.doki`、縦画面）。
 ゲームのファイルはアプリに同梱するので、オフラインでも遊べます。
+日本語と英語に対応しています（端末の言語が日本語なら日本語、それ以外は英語。タイトル画面の「English／日本語」で切りかえ。URL に `?lang=en` でも指定できます）。
 
 - 動作確認用 APK（テスト広告・デバッグ署名）：`main` に push するたびに GitHub Actions がビルドして、Release に載せます
   - リリース画面：https://github.com/techgymjp/doki/releases/tag/android-latest
@@ -87,6 +88,8 @@ index.html
 css/style.css
 vendor/three/         three.js（同梱）
 js/ads.js             広告（アプリ版だけ動く）
+js/i18n.js            日本語・英語の文字
+js/artifacts/en.js    出土品の英語の名前と解説
 scripts/build-web.js  アプリに入れるファイルを www/ にまとめる
 android/              Android アプリ（Capacitor）
 js/main.js            画面遷移・UI

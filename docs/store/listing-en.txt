@@ -38,6 +38,6 @@ Clear a stage to unlock the next one.
 - "Auto": watch an ad to snap the next piece into place (up to 5 times per stage)
 - Share your result
 - Playable offline (ads and sharing need a connection)
-- The game is in Japanese only
+- Available in English and Japanese
 
 * The 3D models are based on the features of each artifact and are not exact copies of the real objects.
