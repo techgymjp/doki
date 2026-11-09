@@ -141,7 +141,8 @@ function rib(dd, along, w, h) { return Math.max(Math.abs(dd - h) - h, Math.abs(a
 function head(x, y, z) {
   const hx = x + 0.01, ax = Math.abs(hx);
   // 顔：幅広で平らな、角の丸い顔（頬当の内側に少し引っこむ）
-  let d = box(hx, y, z, 0, 1.165, 0.04, 0.054, 0.075, 0.045, 0.028);
+  // 丸みのある卵形の顔（正面は少し平ら）
+  let d = Math.max(ell(hx, y, z, 0, 1.165, 0.035, 0.056, 0.078, 0.06), z - 0.088 - 0.25 * (hx * hx) / 0.003 * 0.003);
   // 細い目（つり上がらない、ほぼ水平の切れ目）
   // 鼻：眉間から下へのび、先ほど高く前に出る鼻（稜線は丸い）
   d = smin(d, cone(hx, y, z, 0, 1.205, 0.082, 0, 1.152, 0.112, 0.008, 0.016), 0.008);
@@ -178,9 +179,10 @@ function head(x, y, z) {
     // すそのへり
     d = Math.min(d, Math.max(Math.abs(y - 1.066) - 0.008, Math.abs(sh + 0.006) - 0.012, 0.058 - ax));
     // 格子の桟：横4本・縦2本（板の外側に浮き出る）
-    const out = Math.abs(sh - 0.003) - 0.0035;
-    for (const yb of [1.115, 1.155, 1.195]) d = Math.min(d, Math.max(out, Math.abs(y - yb) - 0.005, inGuard + 0.008));
-    for (const zb of [0.05, -0.005]) d = Math.min(d, Math.max(out, Math.abs(z - zb) - 0.005, inGuard + 0.008));
+    // 桟は丸い断面のひも（表面にそって浮かせ、なめらかに）
+    const surf = Math.abs(sh + 0.0005);
+    for (const yb of [1.115, 1.155, 1.195]) d = smin(d, Math.max(Math.hypot(surf, y - yb) - 0.0055, inGuard + 0.008), 0.004);
+    for (const zb of [0.05, -0.005]) d = smin(d, Math.max(Math.hypot(surf, z - zb) - 0.0055, inGuard + 0.008), 0.004);
   }
   // 錣：後ろから首を守る広がった板
   {
