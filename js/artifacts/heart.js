@@ -21,25 +21,29 @@ function heart2d(u, v) {
 function body2d(x, y) {
   const ax = Math.abs(x);
   // 脚：下へ広がる板、中はアーチ形にくりぬく
-  const lw = 0.2 + 0.085 * Math.pow(clamp(1 - y / 0.56, 0, 1), 1.6);
-  let legs = Math.max(ax - lw, y - 0.58, -y);
-  const open = Math.min(Math.max(ax - 0.1, y - 0.36), Math.hypot(x, y - 0.36) - 0.1);
+  // 脚：腰からすそへ大きく広がる太い脚（横から見るとつり鐘形）
+  const lw = 0.055 + 0.25 * Math.pow(clamp(1 - y / 0.66, 0, 1), 1.05);
+  let legs = Math.max(ax - lw, y - 0.66, -y);
+  // 脚のあいだ：高いアーチ形のあき。内側のふちは下で少し内へ張り出す（足先が広がる）
+  const iw = 0.075 - 0.025 * Math.pow(clamp(1 - y / 0.2, 0, 1), 1.5);
+  const open = Math.min(Math.max(ax - iw, y - 0.38), Math.hypot(x / 0.075, (y - 0.38) / 0.1) * 0.075 - 0.075);
   legs = Math.max(legs, -open);
   // 腰〜胸：腰で細くくびれ、肩へ広がる
-  const tw = y < 0.68 ? 0.07 + 0.13 * Math.pow(clamp((0.68 - y) / 0.14, 0, 1), 2) : 0.07 + 0.08 * clamp((y - 0.68) / 0.2, 0, 1);
-  const torso = Math.max(ax - tw, y - 0.92, 0.52 - y);
+  // 胴：首から腰まで細い柱のような胴（胸でわずかに広がる）
+  const tw = 0.05 + 0.03 * clamp((y - 0.7) / 0.18, 0, 1);
+  const torso = Math.max(ax - tw, y - 0.92, 0.55 - y);
   // 肩：横一文字の板（両端は少し下がる）
   const sy = 0.915 - 0.03 * (ax / 0.27) * (ax / 0.27);
   const shoulder = Math.max(ax - 0.275, Math.abs(y - sy) - 0.035);
   return smin(smin(legs, torso, 0.04), shoulder, 0.03);
 }
-function depth(y) { const t = clamp((y - 0.4) / 0.25, 0, 1); return 0.08 - 0.03 * t * t * (3 - 2 * t); }   // 前後の厚みの半分（脚は厚く、上へなめらかに薄く）
+function depth(y) { return 0.052 + 0.11 * Math.pow(clamp(1 - y / 0.66, 0, 1), 1.4); }   // 前後の厚みの半分（すそほど厚い）   // 前後の厚みの半分（脚は厚く、上へなめらかに薄く）
 
 function body(x, y, z) {
   const ax = Math.abs(x);
   const b2 = body2d(x, y);
   const dz = Math.abs(z) - depth(y);
-  const R = 0.03;
+  const R = y < 0.6 ? 0.05 : 0.03;   // 脚は前後に丸く、ぼってりと
   let d = Math.hypot(Math.max(b2 + R, 0), Math.max(dz + R, 0)) + Math.min(Math.max(b2 + R, dz + R), 0) - R;
   // 肩の両端から下へ垂れる短い腕
   d = smin(d, cone(ax, y, z, 0.25, 0.9, 0, 0.24, 0.74, 0.01, 0.04, 0.026), 0.02);
@@ -51,6 +55,8 @@ function body(x, y, z) {
 function sdf(x, y, z) {
   const ax = Math.abs(x);
   let d = body(x, y, z);
+  // 足：脚の下端は前へ少し出た、平らで丸い足
+  d = smin(d, ell(ax, y, z, 0.19, 0.03, 0.0, 0.11, 0.03, 0.16), 0.03);
   // 乳房とへそ、腹の中心をとおる隆起線
   d = smin(d, ell(ax, y, z, 0.045, 0.82, 0.05, 0.02, 0.02, 0.016), 0.01);
   d = smin(d, cone(x, y, z, 0, 0.8, 0.055, 0, 0.6, 0.058, 0.007, 0.007), 0.006);
@@ -104,7 +110,7 @@ float patH(vec3 p) {
   // 脚：横の細い平行線の帯と、ふちの点の列
   else {
     g = max(g, htLine(fract(p.y / 0.02) - 0.5, 0.13) * 0.85);
-    float lw = 0.2 + 0.085 * pow(clamp(1.0 - p.y / 0.56, 0.0, 1.0), 1.6);
+    float lw = 0.055 + 0.25 * pow(clamp(1.0 - p.y / 0.66, 0.0, 1.0), 1.05);
     g = max(g, htLine(length(vec2((ax - lw + 0.014) / 0.016, fract(p.y / 0.018) - 0.5)), 0.35));
   }
   return -g * 0.0022 + (htHash(floor(p * 150.0)) - 0.5) * 0.00015;
@@ -131,7 +137,7 @@ export const heart = {
   core,
   thickness: 0.032,
   voxel: 0.0105,
-  bounds: { min: [-0.32, -0.02, -0.12], max: [0.32, 1.32, 0.22] },
+  bounds: { min: [-0.36, -0.02, -0.2], max: [0.36, 1.32, 0.22] },
   height: 1.3,
   clearRadius: 0.45,
   patternGLSL,
