@@ -3,7 +3,7 @@
 import { clamp, smin, ell, cone, chain, torusAxis } from './common-sdf.js';
 
 // 顔の面：大きく上を向いたハート形の板
-const FC = [0, 1.12, 0.045], FA = 0.62;
+const FC = [0, 1.14, 0.05], FA = 0.8;    // 顔は大きく上を向く
 const FN = [0, Math.sin(FA), Math.cos(FA)], FT = [0, Math.cos(FA), -Math.sin(FA)];
 function faceUVW(x, y, z) {
   const qx = x - FC[0], qy = y - FC[1], qz = z - FC[2];
@@ -20,51 +20,38 @@ function heart2d(u, v) {
 // 正面から見た体の形（2D）：アーチ形に開いた脚、細い腰、横一文字の肩
 function body2d(x, y) {
   const ax = Math.abs(x);
-  // 脚：短くどっしりした脚。外側のふちは丸くふくらんで下へ広がり（つり鐘形）、足先でさらに少し張り出す
-  const lt = clamp(y / 0.52, 0, 1);
-  const lw = 0.07 + 0.215 * Math.sqrt(1 - lt) + 0.02 * clamp(1 - y / 0.06, 0, 1);
-  let legs = Math.max(ax - lw, y - 0.52, -y);
-  // 脚のあいだ：まるい馬蹄形のアーチ（下の口は少しすぼまり、足先が内側へ向く）
-  const open = Math.min(Math.hypot(x, y - 0.165) - 0.1, Math.max(ax - 0.068, y - 0.165));
-  legs = Math.max(legs, -open);
-  // 腰〜胸：腰で細くくびれ、肩へ広がる
-  // 胴：首から腰まで細い柱のような胴（胸でわずかに広がる）
-  const tw = 0.05 + 0.03 * clamp((y - 0.7) / 0.18, 0, 1);
-  const torso = Math.max(ax - tw, y - 0.92, 0.45 - y);
-  // 肩から腕：首の両わきから外へ下がる弓なりの板が、そのまま腕になって垂れる。
-  //   胴と腕のあいだ（わきの下）はアーチ形にあく
-  const top = 0.955 - 0.08 * Math.pow(ax / 0.3, 2);
-  const aw = 0.3 + 0.012 * clamp((0.82 - y) / 0.1, 0, 1);     // 腕の先は少し外へ広がる
-  let arms = Math.max(ax - aw, y - top, 0.715 - y);
-  const pit = Math.min(
-    Math.max(Math.abs(ax - 0.15) - 0.075, y - 0.765),
-    Math.hypot((ax - 0.15) / 0.075, (y - 0.765) / 0.075) * 0.075 - 0.075);
-  arms = Math.max(arms, -pit);
-  // 腕の先は丸く
-  arms = Math.max(arms, Math.hypot(Math.max(ax - aw + 0.03, 0), Math.max(0.745 - y, 0)) - 0.03);
-  return smin(smin(legs, torso, 0.04), arms, 0.025);
+  // ---- 写真の正面フォルム（直線を使わず、なめらかな曲線だけで）----
+  // 脚と腰：腰のくびれから、Cの字を描いて大きく張り出し、すそでわずかに広がる
+  const hw = 0.06 + 0.195 * smooth(0.62, 0.38, y) + 0.022 * Math.sin(Math.PI * clamp(y / 0.4, 0, 1));   // 外側のふちはゆるくふくらむ
+  let d = Math.max(ax - hw, y - 0.86, -y);
+  // 股：Oの字のあき（下の口は小さくすぼまる）
+  const o = Math.hypot(x / 0.125, (y - 0.21) / 0.19) - 1;
+  d = Math.max(d, -Math.min(o * 0.125, Math.max(ax - 0.045, y - 0.08)));   // 下の口はあいている
+  // 胴：腰から胸へ少しだけ広がる細い柱
+  const tw = 0.06 + 0.02 * smooth(0.62, 0.84, y);
+  d = Math.min(d, Math.max(ax - tw, y - 0.95, 0.5 - y));
+  // 肩と腕：上のふちはゆるい弧。腕は肩から下へ垂れ、先は丸くとがる
+  const top = 0.955 - 0.045 * (ax / 0.34) * (ax / 0.34);
+  let sh = Math.max(ax - 0.34, y - top, 0.82 - y);
+  // 腕（肩の両はし）：太さが先へ向かって細くなる、わずかに外へ反った垂れ
+  for (let k = 0; k <= 8; k++) {
+    const t = k / 8, cy = 0.87 - 0.2 * t, cx = 0.29 + 0.012 * t * t, r = 0.05 - 0.03 * t;
+    sh = Math.min(sh, Math.hypot(ax - cx, y - cy) - r);
+  }
+  // わきの下：Cの字（右）と逆Cの字（左）にえぐる
+  sh = Math.max(sh, -(Math.hypot((ax - 0.163) / 0.085, (y - 0.75) / 0.085) * 0.085 - 0.085));
+  d = smin(d, sh, 0.03);
+  return d;
 }
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 function depth(y) { return 0.052 + 0.1 * Math.sqrt(clamp(1 - y / 0.55, 0, 1)); }   // 前後の厚みの半分（すそほど厚い）   // 前後の厚みの半分（脚は厚く、上へなめらかに薄く）
 
 function body(x, y, z) {
   const ax = Math.abs(x);
   const b2 = body2d(x, y);
   const dz = Math.abs(z) - depth(y);
-  const R = 0.03;
+  const R = y < 0.62 ? 0.055 : 0.035;   // 角のない、まるい断面
   let d = Math.hypot(Math.max(b2 + R, 0), Math.max(dz + R, 0)) + Math.min(Math.max(b2 + R, dz + R), 0) - R;
-  // 脚：断面がまるい（角のない）脚。各高さで、脚の幅と前後の厚みの楕円にする
-  if (y < 0.56) {
-    const lw = 0.07 + 0.215 * Math.sqrt(1 - clamp(y / 0.52, 0, 1)) + 0.02 * clamp(1 - y / 0.06, 0, 1);
-    const inner = y < 0.165 ? 0.068 : y < 0.265 ? Math.sqrt(Math.max(0, 0.01 - (y - 0.165) * (y - 0.165))) : 0;
-    const c = (inner + lw) / 2, hw = (lw - inner) / 2;
-    const dep = depth(y);
-    let leg = (Math.hypot((ax - c) / hw, z / dep) - 1) * Math.min(hw, dep);
-    // アーチの上は左右の脚がひとつにつながる（なめらかに）
-    const merged = Math.max((Math.hypot(ax / lw, z / dep) - 1) * Math.min(lw, dep), 0.25 - y);
-    leg = smin(leg, merged, 0.035);
-    leg = Math.max(leg, -y, y - 0.54);
-    d = y < 0.5 ? leg : smin(Math.max(d, 0.5 - y), leg, 0.03);
-  }
   // 首
   d = smin(d, cone(x, y, z, 0, 0.92, 0, 0, 1.06, 0.02, 0.05, 0.045), 0.03);
   return d;
@@ -79,8 +66,10 @@ function sdf(x, y, z) {
   d = smin(d, ell(ax, y, z, 0.045, 0.82, 0.05, 0.02, 0.02, 0.016), 0.01);
   d = smin(d, cone(x, y, z, 0, 0.8, 0.055, 0, 0.6, 0.058, 0.007, 0.007), 0.006);
   // ハート形の顔の板
-  const [u, v, w] = faceUVW(x, y, z);
-  const h2 = heart2d(u, v);
+  const FSC = 1.15;   // 顔を大きく
+  const [u0, v0, w] = faceUVW(x, y, z);
+  const u = u0 / FSC, v = v0 / FSC;
+  const h2 = heart2d(u, v) * FSC;
   let face = Math.hypot(Math.max(h2, 0), Math.max(Math.abs(w) - 0.024, 0)) + Math.min(Math.max(h2, Math.abs(w) - 0.024), 0) - 0.006;
   // ふちの盛り上がり
   face = Math.min(face, Math.hypot(h2 + 0.012, Math.max(w - 0.03, 0)) - 0.01 + (w < 0 ? 1 : 0));
@@ -95,6 +84,13 @@ function sdf(x, y, z) {
   // 小さな口
   face = Math.max(face, -(Math.hypot(u, v + 0.1, w - 0.03) - 0.011));
   d = smin(d, face, 0.02);
+  // 顔のうしろ（後頭部）に立つ板：まるい穴があいている
+  {
+    const py = y - 1.15, pz = z + 0.035;
+    let plate = Math.max((Math.hypot(py / 0.09, pz / 0.07) - 1) * 0.07, Math.abs(x) - 0.026);
+    plate = Math.max(plate, -(Math.hypot(py - 0.03, pz + 0.005) - 0.032));
+    d = smin(d, plate, 0.012);
+  }
   return Math.max(d, -y);
 }
 const core = body;
@@ -128,7 +124,7 @@ float patH(vec3 p) {
   // 脚：横の細い平行線の帯と、ふちの点の列
   else {
     g = max(g, htLine(fract(p.y / 0.02) - 0.5, 0.13) * 0.85);
-    float lw = 0.07 + 0.215 * sqrt(1.0 - clamp(p.y / 0.52, 0.0, 1.0));
+    float lw = 0.06 + 0.195 * smoothstep(0.62, 0.38, p.y) + 0.022 * sin(3.14159 * clamp(p.y / 0.4, 0.0, 1.0));
     g = max(g, htLine(length(vec2((ax - lw + 0.014) / 0.016, fract(p.y / 0.018) - 0.5)), 0.35));
   }
   return -g * 0.0022 + (htHash(floor(p * 150.0)) - 0.5) * 0.00015;
@@ -155,7 +151,7 @@ export const heart = {
   core,
   thickness: 0.032,
   voxel: 0.0105,
-  bounds: { min: [-0.36, -0.02, -0.2], max: [0.36, 1.32, 0.22] },
+  bounds: { min: [-0.36, -0.02, -0.2], max: [0.36, 1.36, 0.26] },
   height: 1.3,
   clearRadius: 0.45,
   patternGLSL,
