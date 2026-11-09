@@ -170,3 +170,19 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 /* 結果のボタン：どの画面でも「次へ」を1行目、残り3つを2行目に */
 .result-actions { display: grid; grid-template-columns: repeat(3, 1fr); }
 .result-actions .primary { grid-column: 1 / -1; }
+
+/* ---- あそびかた・ポーズ・アプリ版 ---- */
+.title-sub-actions { display: flex; gap: 8px; }
+.title-sub-actions button { flex: 1; background: transparent; border: 1px solid var(--line); border-radius: 12px; padding: 9px; font-weight: 700; color: inherit; }
+.legal { margin: 0; text-align: center; font-size: 11px; color: var(--muted); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.legal a { color: var(--muted); }
+#build-info:empty { display: none; }
+#howto .desc p { margin: 0 0 10px; }
+#howto, #pause { z-index: 30; }
+.pause-card { max-width: 420px; }
+#pause { align-items: center; justify-content: center; background: rgba(10,7,5,.6); }
+#pause .result-actions { grid-template-columns: 1fr; }
+#btn-auto { background: #7a4a1c; }
+/* アプリ版：画面の下中央に出る広告バナー（高さ 50dp）とボタンが重ならないようにする */
+body.app #title { padding-bottom: calc(env(safe-area-inset-bottom) + 66px); }
+body.app .modal { padding-bottom: 66px; }

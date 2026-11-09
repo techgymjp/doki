@@ -1,0 +1,8 @@
+{
+  "appId": "jp.techgym.doki",
+  "appName": "復元せよ",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#17110d"
+  }
+}

@@ -3,6 +3,20 @@ import { STAGES } from './artifacts/index.js';
 import * as sfx from './audio.js';
 
 const $ = (id) => document.getElementById(id);
+
+// ---- アプリ版（Android）のネイティブ機能。Web 版では window.Capacitor がないので何もしない ----
+const cap = window.Capacitor;
+const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+const plugin = (name) => (native && cap.Plugins ? cap.Plugins[name] : null);
+const Ads = window.Ads;
+window.AppAudio = { suspend: () => sfx.suspendAll(), resume: () => sfx.resumeAll() };
+if (native) document.body.classList.add('app');
+// アプリでは外部のページ（シェア先・プライバシーポリシー）を端末のブラウザで開く
+const openExternal = (u) => {
+  if (native) location.href = u;
+  else window.open(u, '_blank', 'noopener,noreferrer,width=600,height=520');
+};
+const AUTO_MAX = 5;   // おまかせ（リワード広告）は 1 ステージ 5 回まで
 const ui = {
   title: $('title'), hud: $('hud'), result: $('result'), loading: $('loading'), toast: $('toast'),
   start: $('start-btn'), list: $('artifact-list'), info: $('artifact-info'),
@@ -51,7 +65,7 @@ const game = new Game($('stage'), {
   onTime: (t) => { $('hud-time').textContent = fmt(t); },
   onToast: (m) => toast(m),
   onGhost: (v) => $('btn-ghost').classList.toggle('on', v),
-  onStart: () => { sfx.setTicking(true); },
+  onStart: () => { if (!game.paused) sfx.setTicking(true); },
   onDrag: (on) => { if (on) $('hud-help').classList.add('gone'); },
   onComplete: (r) => showResult(r),
   onFinish: () => {
@@ -127,6 +141,7 @@ function startStage() {
   game.setViewShift(0, 0);
   game.start();
   game.resetView(true);
+  updateAutoBtn();
 }
 
 // 最初にどこかを触ったら音を準備してBGMを流す（ブラウザの決まりで、操作の前は音を出せない）
@@ -137,8 +152,9 @@ function wakeAudio() {
 addEventListener('pointerdown', wakeAudio, { once: true });
 addEventListener('keydown', wakeAudio, { once: true });
 
-ui.start.addEventListener('click', () => {
+ui.start.addEventListener('click', async () => {
   wakeAudio();
+  await Ads.showInterstitial(3000);
   ui.title.classList.add('hide');
   setTimeout(() => { ui.title.hidden = true; }, 400);
   startStage();
@@ -155,9 +171,79 @@ $('btn-bgm').addEventListener('click', (e) => {
   sfx.setBgmMuted(!sfx.isBgmMuted());
   e.currentTarget.textContent = sfx.isBgmMuted() ? 'BGM OFF' : 'BGM ON';
 });
-$('btn-menu').addEventListener('click', () => {
-  if (game.state === 'playing' && !confirm('タイトルにもどりますか？（進行中の復元は失われます）')) return;
-  backToTitle();
+$('btn-menu').addEventListener('click', openPause);
+
+// ---- ポーズ ----
+const inPlay = () => !ui.hud.hidden && (game.state === 'playing' || game.state === 'breaking');
+function openPause() {
+  if (!$('pause').hidden) return;
+  if (!inPlay()) { goTitle(); return; }   // 完成後に「ながめる」中ならタイトルへ
+  game.setPaused(true);
+  sfx.setTicking(false);
+  $('pause-title').textContent = STAGES[stageIndex].name;
+  $('pause').hidden = false;
+}
+async function resumePlay() {
+  $('pause').hidden = true;
+  await Ads.showInterstitial(3000);
+  if (!$('pause').hidden) return;
+  game.setPaused(false);
+  if (game.state === 'playing') sfx.setTicking(true);
+}
+$('pause-resume').addEventListener('click', resumePlay);
+$('pause-title-btn').addEventListener('click', () => { $('pause').hidden = true; game.setPaused(false); goTitle(); });
+// 別のアプリに切り替えたら、自動でポーズ
+document.addEventListener('visibilitychange', () => { if (document.hidden && inPlay()) openPause(); });
+
+// ---- あそびかた ----
+$('howto-btn').addEventListener('click', () => { $('howto').hidden = false; });
+$('howto-close').addEventListener('click', async () => { $('howto').hidden = true; await Ads.showInterstitial(3000); });
+
+// ---- おまかせ（アプリ版：リワード広告を最後まで見ると、次のピースを自動ではめる） ----
+const autoBtn = $('btn-auto');
+function updateAutoBtn() {
+  const on = Ads.canReward;
+  autoBtn.hidden = !on;
+  $('howto-auto').hidden = !on;
+  autoBtn.textContent = `おまかせ ${AUTO_MAX - game.autos}`;
+  autoBtn.disabled = game.autos >= AUTO_MAX;
+}
+autoBtn.addEventListener('click', async () => {
+  if (game.state !== 'playing' || game.autos >= AUTO_MAX || Ads.showing) return;
+  game.setPaused(true);
+  const r = await Ads.showRewarded();
+  game.setPaused(false);
+  if (r === 'rewarded') game.autoPlace();
+  else if (r === 'unavailable') toast('いまは広告を読み込めません');
+  updateAutoBtn();
+});
+
+// ---- 広告バナー：タイトル・あそびかた・ポーズ・結果画面だけ（プレイ中は出さない） ----
+setInterval(() => {
+  Ads.setBanner(!ui.title.hidden || !$('howto').hidden || !$('pause').hidden || !ui.result.hidden);
+}, 300);
+
+// ---- 戻るボタン（Android） ----
+const App = plugin('App');
+if (App) {
+  App.addListener('backButton', () => {
+    if (Ads.showing) return;
+    if (!$('howto').hidden) { $('howto-close').click(); return; }
+    if (!$('pause').hidden) { resumePlay(); return; }
+    if (inPlay()) { openPause(); return; }
+    if (!ui.hud.hidden && ui.result.hidden && game.state === 'complete') { ui.result.hidden = false; return; }   // 「ながめる」から結果へ
+    App.exitApp();
+  });
+}
+
+// ---- タイトル画面のバージョンと広告の設定 ----
+if (window.APP_VERSION && window.APP_VERSION !== 'dev') $('build-info').textContent = window.APP_VERSION;
+Ads.initDone.then(() => { if (Ads.privacyOptionsRequired) $('ad-privacy').hidden = false; updateAutoBtn(); });
+$('ad-privacy-link').addEventListener('click', (e) => { e.preventDefault(); Ads.showPrivacyOptions(); });
+document.querySelector('.legal a[target=_blank]').addEventListener('click', (e) => {
+  if (!native) return;
+  e.preventDefault();
+  openExternal(e.currentTarget.href);
 });
 
 function previewShift() {
@@ -166,6 +252,11 @@ function previewShift() {
 }
 addEventListener('resize', () => { if (!ui.title.hidden) previewShift(); });
 
+// トップ画面にもどる（ポーズ・結果画面から）：全画面広告をはさむ
+async function goTitle() {
+  await Ads.showInterstitial(3000);
+  backToTitle();
+}
 function backToTitle() {
   sfx.setTicking(false);
   ui.result.hidden = true;
@@ -186,6 +277,8 @@ function showResult(r) {
   $('result-time').textContent = fmt(r.time);
   $('result-pieces').textContent = `${r.pieces}`;
   $('result-hints').textContent = `${r.hints}回`;
+  $('result-autos').textContent = `${r.autos || 0}回`;
+  $('result-autos-box').hidden = !(Ads.canReward || r.autos);
   $('result-desc').innerHTML = cur.description.map((t) => `<p>${t}</p>`).join('') + `<p class="note">${cur.note}</p>`;
   const next = nextPlayable();
   const nb = $('btn-next');
@@ -203,14 +296,22 @@ let lastResult = null;
 function shareText() {
   const cur = STAGES[stageIndex];
   const t = lastResult ? fmt(lastResult.time) : '';
-  return `「復元せよ 土器・土偶・埴輪」でステージ${stageIndex + 1}「${cur.name}」を${t}で復元しました！ #復元せよ`;
+  const auto = lastResult && lastResult.autos ? `（おまかせ${lastResult.autos}回）` : '';
+  return `「復元せよ 土器・土偶・埴輪」でステージ${stageIndex + 1}「${cur.name}」を${t}${auto}で復元しました！ #復元せよ`;
 }
-const openShare = (u) => window.open(u, '_blank', 'noopener,noreferrer,width=600,height=520');
+const openShare = openExternal;
 $('share-x').addEventListener('click', () => openShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText())}&url=${encodeURIComponent(SHARE_URL)}`));
 $('share-line').addEventListener('click', () => openShare(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(SHARE_URL)}&text=${encodeURIComponent(shareText())}`));
 $('share-fb').addEventListener('click', () => openShare(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}`));
+// アプリでは「リンクをコピー」の代わりに、Android の共有メニューを出す
+const NativeShare = plugin('Share');
+if (NativeShare) $('share-copy').textContent = 'ほかのアプリ';
 $('share-copy').addEventListener('click', async () => {
   const text = `${shareText()} ${SHARE_URL}`;
+  if (NativeShare) {
+    try { await NativeShare.share({ title: '復元せよ 土器・土偶・埴輪', text: shareText(), url: SHARE_URL, dialogTitle: '結果をシェア' }); } catch (e) { /* キャンセル */ }
+    return;
+  }
   try {
     if (navigator.share) { await navigator.share({ text: shareText(), url: SHARE_URL }); return; }
     await navigator.clipboard.writeText(text);
@@ -224,15 +325,16 @@ $('share-copy').addEventListener('click', async () => {
 $('btn-next').addEventListener('click', async () => {
   const next = nextPlayable();
   if (next < 0) return;
+  await Ads.showInterstitial(3000);
   ui.result.hidden = true;
   ui.hud.hidden = true;
   await selectStage(next);
   ui.title.hidden = false;
   ui.title.classList.remove('hide');
 });
-$('btn-again').addEventListener('click', startStage);
+$('btn-again').addEventListener('click', async () => { await Ads.showInterstitial(3000); startStage(); });
 $('btn-view-pot').addEventListener('click', () => { ui.result.hidden = true; game.setViewShift(0, 0); });
-$('btn-title').addEventListener('click', backToTitle);
+$('btn-title').addEventListener('click', goTitle);
 
 // ---- 起動 ----
 const startIdx = Math.max(0, Math.min(STAGES.length - 1, (parseInt(params.get('stage'), 10) || 1) - 1));

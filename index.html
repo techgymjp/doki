@@ -9,11 +9,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<!-- アプリ版（Android）用：広告の設定とバージョン（Web 版では広告は何もしない） -->
+<script src="js/ads-config.js"></script>
+<script src="js/build-info.js"></script>
+<script src="js/ads.js"></script>
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/addons/"
   }
 }
 </script>
@@ -32,7 +36,11 @@
     <div id="artifact-info" class="artifact-info"></div>
     <button id="stage-toggle" class="stage-toggle" type="button" aria-expanded="false">ステージを選ぶ ▾</button>
     <button id="start-btn" class="primary" disabled>読み込み中…</button>
+    <div class="title-sub-actions">
+      <button id="howto-btn" type="button">あそびかた</button>
+    </div>
     <p class="tip">ドラッグ・フリックで回して、じっくり観察しよう</p>
+    <p class="legal"><span id="build-info"></span><a href="https://techgym.jp/privacy-policy/" target="_blank" rel="noopener">プライバシーポリシー</a><span id="ad-privacy" hidden>｜<a href="#" id="ad-privacy-link">広告の設定</a></span></p>
   </div>
 </section>
 
@@ -51,12 +59,46 @@
     <button id="btn-view" title="視点をもとに戻す">視点</button>
     <button id="btn-bgm" title="BGM">BGM ON</button>
     <button id="btn-sound" title="すべての音">音 ON</button>
-    <button id="btn-menu" title="タイトルにもどる">メニュー</button>
+    <button id="btn-auto" title="広告を見ると、次のピースを自動ではめます" hidden>おまかせ</button>
+    <button id="btn-menu" title="一時停止">ポーズ</button>
   </div>
   <p id="hud-help" class="hud-help">ピースをドラッグして正しい位置に近づけると<b>ピタッ</b>とはまります。<b>底や足のピース</b>から組み上げよう。<br>何もないところをフリックすると回転できます。</p>
 </section>
 
 <div id="toast" class="toast" hidden></div>
+
+<!-- あそびかた -->
+<section id="howto" class="modal" hidden>
+  <div class="card">
+   <div class="card-scroll">
+    <p class="result-label">あそびかた</p>
+    <h2>こなごなの出土品を復元しよう</h2>
+    <div class="desc">
+      <p>「復元スタート」を押すと、出土品がこなごなに割れます。</p>
+      <p>ピースをドラッグして、正しい位置に近づけると<b>ピタッ</b>とはまります。<b>底や足のピース</b>から、下から順に組み上げよう。</p>
+      <p>何もないところをドラッグ・フリックすると、ぐるっと回して見られます。</p>
+      <p><b>ヒント</b>…次にはめるピースの場所が光ります。<br><b>ガイド</b>…完成形がうっすら見えます（難しいステージでは見えにくくなります）。<br><b>視点</b>…見る向きをもとに戻します。</p>
+      <p id="howto-auto" hidden><b>おまかせ</b>…広告を見ると、次のピースを自動ではめます（1ステージ5回まで）。</p>
+      <p>ステージをクリアすると、次のステージが遊べるようになります。</p>
+    </div>
+   </div>
+    <div class="result-actions">
+      <button id="howto-close" class="primary">タイトルにもどる</button>
+    </div>
+  </div>
+</section>
+
+<!-- ポーズ -->
+<section id="pause" class="modal" hidden>
+  <div class="card pause-card">
+    <p class="result-label">ポーズ中</p>
+    <h2 id="pause-title"></h2>
+    <div class="result-actions">
+      <button id="pause-resume" class="primary">つづける</button>
+      <button id="pause-title-btn">タイトルにもどる</button>
+    </div>
+  </div>
+</section>
 
 <!-- 完成 -->
 <section id="result" class="modal" hidden>
@@ -69,6 +111,7 @@
       <div><em>タイム</em><b id="result-time"></b></div>
       <div><em>ピース</em><b id="result-pieces"></b></div>
       <div><em>ヒント</em><b id="result-hints"></b></div>
+      <div id="result-autos-box" hidden><em>おまかせ</em><b id="result-autos"></b></div>
     </div>
     <div id="result-desc" class="desc"></div>
    </div>

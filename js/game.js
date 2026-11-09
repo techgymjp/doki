@@ -31,6 +31,8 @@ export class Game {
     this.clock = new THREE.Clock();
     this.elapsed = 0;
     this.hints = 0;
+    this.autos = 0;        // 広告を見て自動ではめた回数（アプリ版のおまかせ）
+    this.paused = false;
     this._initScene();
     this._initInput();
     this.renderer.setAnimationLoop(() => this._tick());
@@ -316,6 +318,8 @@ export class Game {
     this.state = 'breaking';
     this.elapsed = 0;
     this.hints = 0;
+    this.autos = 0;
+    this.paused = false;
     this._shatter();
   }
 
@@ -370,7 +374,7 @@ export class Game {
   }
 
   _down(e) {
-    if (this.state !== 'playing' || this.drag) return;
+    if (this.state !== 'playing' || this.paused || this.drag) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     const cand = this.pieces.filter((p) => !p.placed).map((p) => p.mesh);
     // 指でも掴みやすいよう、少し外れた所も探す
@@ -503,7 +507,7 @@ export class Game {
       this.controls.autoRotate = true;
       this.resetView(true);
     }, 300);
-    setTimeout(() => this.ev.onComplete?.({ time: this.elapsed, hints: this.hints, pieces: this.pieces.length }), 1700);
+    setTimeout(() => this.ev.onComplete?.({ time: this.elapsed, hints: this.hints, autos: this.autos, pieces: this.pieces.length }), 1700);
   }
 
   _emitCount() {
@@ -528,6 +532,21 @@ export class Game {
     p.hintUntil = performance.now() + 2600;
     clearTimeout(this._hintTimer);
     this._hintTimer = setTimeout(() => { if (!this.drag) this._hideSlot(); }, 2600);
+  }
+
+  // 一時停止（時計を止め、ピースを触れなくする）
+  setPaused(on) { this.paused = on; }
+
+  // おまかせ：次にはめるピース（置けるもののうち一番下）を自動で正しい位置にはめる
+  autoPlace() {
+    if (this.state !== 'playing') return false;
+    const cands = this.pieces.filter((p) => !p.placed && this._placeable(p) && !(this.drag && this.drag.p === p));
+    if (!cands.length) return false;
+    cands.sort((a, b) => a.center.y - b.center.y);
+    this.autos++;
+    this._hideSlot();
+    this._place(cands[0]);
+    return true;
   }
 
   _showSlot(p) {
@@ -604,7 +623,7 @@ export class Game {
   _tick() {
     const dt = Math.min(0.05, this.clock.getDelta());
     const now = performance.now();
-    if (this.state === 'playing') { this.elapsed += dt; this.ev.onTime?.(this.elapsed); }
+    if (this.state === 'playing' && !this.paused) { this.elapsed += dt; this.ev.onTime?.(this.elapsed); }
 
     if (this._camAnim) {
       const a = this._camAnim;

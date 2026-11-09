@@ -57,11 +57,19 @@ export function setBgmMuted(m) {
 }
 export function isBgmMuted() { return bgmMuted; }
 // 画面が隠れている間は止め、戻ったら続きから
+// 広告を表示している間も止める（アプリ版）
+let adHold = false;
+function wake() {
+  if (!ctx || document.hidden || adHold) return;
+  ctx.resume().then(() => { nextBeat = ctx.currentTime + 0.1; nextTick = ctx.currentTime + 0.1; });
+}
 document.addEventListener('visibilitychange', () => {
   if (!ctx) return;
   if (document.hidden) ctx.suspend();
-  else ctx.resume().then(() => { nextBeat = ctx.currentTime + 0.1; nextTick = ctx.currentTime + 0.1; });
+  else wake();
 });
+export function suspendAll() { adHold = true; if (ctx) ctx.suspend(); }
+export function resumeAll() { adHold = false; wake(); }
 export function setBgmVolume(v) {
   bgmLevel = v;
   if (bgmMuted) return;
