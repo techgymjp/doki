@@ -56,8 +56,10 @@ function sdf(x, y, z) {
   // 眉：額の下を横一文字に走る出っぱり（両端は顔の横へ回りこむ）
   {
     const bz = 0.262 - 3.6 * x * x;
-    const brow = Math.max(Math.hypot(y - 0.77, Math.max(z - bz, 0)) - 0.02, Math.abs(x) - 0.19, 0.05 - z);
-    d = smin(d, brow, 0.03);
+    // 断面は上が平らで前と下がはっきり角ばった出っぱり（くっきりした影ができる）
+    const by = y - 0.772, bf = z - (bz + 0.03);
+    const brow = Math.max(Math.hypot(Math.max(Math.abs(by) - 0.014, 0), Math.max(bf, 0)) + Math.min(Math.max(Math.abs(by) - 0.014, bf), 0) - 0.006, Math.abs(x) - 0.195, 0.05 - z);
+    d = smin(d, brow, 0.006);
   }
   // 鼻：眉の間から下へのびる、断面が三角のとがった鼻（稜線が前、角は丸い）。先ほど高く幅広い
   {
@@ -78,8 +80,10 @@ function sdf(x, y, z) {
     // 縦に長い楕円の輪（大きな穴）。眉の高さから鼻先の高さまで
     const ey = (y - 0.62) / 0.11, ez = (z - 0.005) / 0.06;
     const r = Math.hypot(ey, ez);
-    const ring = Math.max(Math.abs(r - 0.68) * 0.07 - 0.022, Math.abs(ax - 0.262) - 0.016);
-    d = smin(d, ring, 0.01);
+    // 頭から外へはっきりつき出た輪（ふちは角ばる）
+    const ring = Math.max(Math.abs(r - 0.68) * 0.07 - 0.024, Math.abs(ax - 0.29) - 0.02);
+    d = Math.min(d, ring);
+    d = smin(d, Math.max(Math.abs(r - 0.68) * 0.07 - 0.024, Math.abs(ax - 0.255) - 0.02, ez + 0.2), 0.004);   // 頭とつながる根元
   }
 
 
