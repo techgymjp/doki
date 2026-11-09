@@ -271,7 +271,7 @@ export class Game {
           v.set(x, 0.05, z).project(cam);
           const portrait = cam.aspect < 0.9;
           const mx = portrait ? 0.8 - rad * 0.6 : Math.min(0.92, 0.92 - rad * 0.25), top = portrait ? 0.45 : 0.55;
-          if (Math.abs(v.x) > mx || v.y < -0.78 || v.y > top) continue;
+          if (Math.abs(v.x) > mx || v.y < (portrait ? -0.6 : -0.78) || v.y > top) continue;
         }
         if (placedSpots.every((s) => Math.hypot(s.x - x, s.z - z) > (s.r + rad) * gap)) { best = { x, z }; break; }
       }
