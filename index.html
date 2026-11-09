@@ -30,6 +30,7 @@
   <div class="title-bottom">
     <div id="artifact-list" class="artifact-list"></div>
     <div id="artifact-info" class="artifact-info"></div>
+    <button id="stage-toggle" class="stage-toggle" type="button" aria-expanded="false">ステージを選ぶ ▾</button>
     <button id="start-btn" class="primary" disabled>読み込み中…</button>
     <p class="tip">ドラッグ・フリックで回して、じっくり観察しよう</p>
   </div>
@@ -52,7 +53,7 @@
     <button id="btn-sound" title="すべての音">音 ON</button>
     <button id="btn-menu" title="タイトルにもどる">メニュー</button>
   </div>
-  <p id="hud-help" class="hud-help">ピースをドラッグして、正しい位置に近づけると<b>ピタッ</b>とはまります。地面につくピース（底や足）から順に組み上げよう。<br>何もないところをフリックすると回転・上からも見られます。</p>
+  <p id="hud-help" class="hud-help">ピースをドラッグして正しい位置に近づけると<b>ピタッ</b>とはまります。<b>底や足のピース</b>から組み上げよう。<br>何もないところをフリックすると回転できます。</p>
 </section>
 
 <div id="toast" class="toast" hidden></div>
@@ -60,6 +61,7 @@
 <!-- 完成 -->
 <section id="result" class="modal" hidden>
   <div class="card">
+   <div class="card-scroll">
     <p class="result-label">復元完了</p>
     <h2 id="result-title"></h2>
     <p id="result-era" class="era"></p>
@@ -69,6 +71,7 @@
       <div><em>ヒント</em><b id="result-hints"></b></div>
     </div>
     <div id="result-desc" class="desc"></div>
+   </div>
     <div class="result-actions">
       <button id="btn-next" class="primary">次のステージへ</button>
       <button id="btn-again">もう一度</button>

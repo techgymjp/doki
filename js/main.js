@@ -51,7 +51,7 @@ const game = new Game($('stage'), {
   onTime: (t) => { $('hud-time').textContent = fmt(t); },
   onToast: (m) => toast(m),
   onGhost: (v) => $('btn-ghost').classList.toggle('on', v),
-  onStart: () => { toast('地面につくピース（底や足）から組み上げよう！'); sfx.setTicking(true); },
+  onStart: () => { sfx.setTicking(true); },
   onDrag: (on) => { if (on) $('hud-help').classList.add('gone'); },
   onComplete: (r) => showResult(r),
   onFinish: () => {
@@ -64,6 +64,16 @@ const game = new Game($('stage'), {
 if (location.search.includes('debug')) window.__game = game;
 
 // ---- ステージ一覧 ----
+// スマホでは一覧をたたみ、「ステージを選ぶ」で開く（完成した出土品が隠れないように）
+const titleBottom = document.querySelector('.title-bottom');
+const toggleBtn = $('stage-toggle');
+function setListOpen(on) {
+  titleBottom.classList.toggle('open', on);
+  toggleBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  toggleBtn.textContent = on ? 'とじる ▴' : 'ステージを選ぶ ▾';
+}
+toggleBtn.addEventListener('click', () => setListOpen(!titleBottom.classList.contains('open')));
+
 function renderList() {
   ui.list.innerHTML = '';
   STAGES.forEach((a, i) => {
@@ -72,9 +82,9 @@ function renderList() {
     const b = document.createElement('button');
     b.className = 'artifact' + (i === stageIndex ? ' selected' : '') + (open ? '' : ' soon');
     b.disabled = !open;
-    const tag = !a.available ? '準備中' : !open ? '前のステージをクリア' : cleared ? 'クリア済み' : '';
+    const tag = !a.available ? '準備中' : !open ? '🔒' : cleared ? 'クリア済み' : '';
     b.innerHTML = `<span class="kind">ステージ${i + 1}・${a.kind}</span><span class="nm">${a.name}</span>${tag ? `<span class="soon-tag">${tag}</span>` : ''}`;
-    b.addEventListener('click', () => selectStage(i));
+    b.addEventListener('click', () => { setListOpen(false); selectStage(i); });
     ui.list.appendChild(b);
   });
   const cur = STAGES[stageIndex];
@@ -152,7 +162,7 @@ $('btn-menu').addEventListener('click', () => {
 
 function previewShift() {
   const wide = innerWidth >= 900 && innerWidth > innerHeight;
-  game.setViewShift(wide ? 0.17 : 0, wide ? -0.03 : 0.2);
+  game.setViewShift(wide ? 0.17 : 0, wide ? -0.03 : (innerHeight / innerWidth < 1.7 ? 0.02 : 0.1));
 }
 addEventListener('resize', () => { if (!ui.title.hidden) previewShift(); });
 

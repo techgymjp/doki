@@ -269,7 +269,8 @@ export class Game {
         const gap = tries < 300 ? 1 : Math.max(0.55, 1 - (tries - 300) / 500);
         if (tries < 780) {
           v.set(x, 0.05, z).project(cam);
-          const mx = Math.min(0.92, 0.92 - rad * 0.25), top = 0.55;
+          const portrait = cam.aspect < 0.9;
+          const mx = portrait ? 0.8 - rad * 0.6 : Math.min(0.92, 0.92 - rad * 0.25), top = portrait ? 0.45 : 0.55;
           if (Math.abs(v.x) > mx || v.y < -0.78 || v.y > top) continue;
         }
         if (placedSpots.every((s) => Math.hypot(s.x - x, s.z - z) > (s.r + rad) * gap)) { best = { x, z }; break; }
@@ -442,8 +443,8 @@ export class Game {
     if (d.magnet) {
       sfx.playDeny();
       this.ev.onToast?.(this._placedCount() === 0
-        ? 'まずは地面につくピース（底や足）からはめよう'
-        : 'まだはめられません。地面か、はまっているピースにつながる所から組み上げよう');
+        ? 'まずは底や足のピースから！'
+        : 'つながるピースから先にはめよう');
     }
     this._setGlow(p, 0x000000);
     // 机の上に置く。器の上や遠すぎる所で離したときは元の場所に戻す
