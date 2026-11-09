@@ -141,7 +141,7 @@ function rib(dd, along, w, h) { return Math.max(Math.abs(dd - h) - h, Math.abs(a
 function head(x, y, z) {
   const hx = x + 0.01, ax = Math.abs(hx);
   // 顔：幅広で平らな、角の丸い顔（頬当の内側に少し引っこむ）
-  let d = box(hx, y, z, 0, 1.165, 0.045, 0.052, 0.075, 0.045, 0.028);
+  let d = box(hx, y, z, 0, 1.165, 0.04, 0.054, 0.075, 0.045, 0.028);
   // 細い目（つり上がらない、ほぼ水平の切れ目）
   // 鼻：眉間から下へのび、先ほど高く前に出る鼻（稜線は丸い）
   d = smin(d, cone(hx, y, z, 0, 1.205, 0.082, 0, 1.152, 0.112, 0.008, 0.016), 0.008);
@@ -154,27 +154,33 @@ function head(x, y, z) {
   // 縦の帯（前の中央）と衝角
   d = Math.min(d, Math.max(Math.abs(bowlE) - 0.006, ax - 0.012, 1.24 - y, -z));
   d = smin(d, cone(hx, y, z, 0, 1.31, 0.055, 0, 1.25, 0.1, 0.012, 0.009), 0.01);
-  // 鋲：はちの表面に3段に並ぶ小さなこぶ
-  for (let k = 0; k < 3; k++) {
-    const el = 0.35 + k * 0.38, n = 12 - k * 3;
-    for (let i = 0; i < n; i++) {
-      const ang = (i / n) * Math.PI * 2;
+  // 鋲：はちの表面に小さな丸いこぶを等間隔に（縦の帯の上と、ひさしの上の一列）
+  for (const ang of [-1.15, 0, 1.15, Math.PI]) {
+    for (let k = 0; k < 4; k++) {
+      const el = 0.25 + k * 0.33;
       const px = Math.sin(ang) * Math.cos(el) * 0.092, py = 1.235 + Math.sin(el) * 0.09, pz = Math.cos(ang) * Math.cos(el) * 0.1;
-      if (Math.abs(px) < 0.015 && pz > 0) continue;
-      d = Math.min(d, Math.hypot(hx - px, y - py, z - pz) - 0.007);
+      d = Math.min(d, Math.hypot(hx - px, y - py, z - pz) - 0.0055);
     }
   }
-  // 頬当：はちの下から顔の両わき・後ろを長くおおう板。前はあき、ふちは太く丸い
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI * 2;
+    d = Math.min(d, Math.hypot(hx - Math.sin(ang) * 0.1, y - 1.247, z - Math.cos(ang) * 0.108) - 0.0048);
+  }
+  // 頬当：はちのふちから顔の両わきに垂れ、前へ回りこむ板。前のふちは太く丸め、外側に格子の桟（さん）
   {
-    const shell = ell(hx, y, z, 0, 1.16, 0.0, 0.098, 0.12, 0.098);
-    let g = Math.max(Math.abs(shell + 0.007) - 0.007, y - 1.236, 1.065 - y);
-    const open = Math.max(0.06 + 0.012 * clamp((1.17 - y) / 0.1, 0, 1) - ax, -z);   // 前のあき（下ほど少し広い）
-    g = Math.max(g, -open);
+    const sh = ell(hx, y, z, 0, 1.16, 0.015, 0.108, 0.125, 0.102);
+    const inGuard = Math.max(y - 1.236, 1.06 - y, 0.058 - ax);
+    let g = Math.max(Math.abs(sh + 0.007) - 0.007, inGuard);
     d = Math.min(d, g);
-    // ふちの太いへり（あきの両側と下のすそ）
-    const rimSide = Math.max(Math.abs(ax - 0.06 - 0.012 * clamp((1.17 - y) / 0.1, 0, 1)) - 0.008, Math.abs(shell + 0.004) - 0.011, -z, y - 1.236, 1.065 - y);
-    const rimBot = Math.max(Math.abs(y - 1.07) - 0.009, Math.abs(shell + 0.004) - 0.011, -open + 0.0 > 0 ? 1 : -1, -z + 0.0 < 0 ? -1 : -1);
-    d = Math.min(d, rimSide, Math.max(Math.abs(y - 1.07) - 0.009, Math.abs(shell + 0.004) - 0.011));
+    // 前のふち（太く丸いへり）：板の前の切り口に沿って
+    const edge = Math.max(Math.abs(ax - 0.064) - 0.009, Math.abs(sh + 0.006) - 0.012, y - 1.236, 1.06 - y, -z);
+    d = Math.min(d, edge);
+    // すそのへり
+    d = Math.min(d, Math.max(Math.abs(y - 1.066) - 0.008, Math.abs(sh + 0.006) - 0.012, 0.058 - ax));
+    // 格子の桟：横4本・縦2本（板の外側に浮き出る）
+    const out = Math.abs(sh - 0.003) - 0.0035;
+    for (const yb of [1.115, 1.155, 1.195]) d = Math.min(d, Math.max(out, Math.abs(y - yb) - 0.005, inGuard + 0.008));
+    for (const zb of [0.05, -0.005]) d = Math.min(d, Math.max(out, Math.abs(z - zb) - 0.005, inGuard + 0.008));
   }
   // 錣：後ろから首を守る広がった板
   {
@@ -284,8 +290,6 @@ float patH(vec3 p) {
   if (p.y > 0.93 && p.y < 1.07 && abs(p.x) > 0.09 && abs(p.x) < 0.21) h -= bjLine(fract((p.y - 0.93) / 0.03) - 0.5, 0.1) * 1.4;
   // 臑当：縦の板の合わせ目
   if (p.y > 0.33 && p.y < 0.53) h -= bjLine(fract(atan(abs(p.x) - 0.08, p.z) * 1.4) - 0.5, 0.06) * 1.3;
-  // 頬当（顔の両わき・後ろ）の格子
-  if (p.y > 1.075 && p.y < 1.23 && abs(p.x + 0.01) > 0.075 && p.z > -0.05) h -= max(bjLine(fract(p.y / 0.03) - 0.5, 0.14), bjLine(fract(p.z / 0.03) - 0.5, 0.14)) * 1.6;
   return h * 0.0011;
 }
 vec3 patC(vec3 p, float h) {
