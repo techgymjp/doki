@@ -13,7 +13,8 @@ function heart2d(u, v) {
   const au = Math.abs(u);
   const lobes = Math.hypot(au - 0.085, v - 0.035) - 0.1;
   const t = clamp((0.03 - v) / 0.19, 0, 1);
-  const tip = Math.max(au - (0.18 * (1 - t) + 0.015 * t), -0.16 - v, v - 0.04);
+  // 下半分（ほお〜あご）は外へふくらんだ曲線で、あごへ丸くすぼまる
+  const tip = Math.max((au - (0.015 + 0.165 * (1 - Math.pow(t, 1.7)))) * 0.8, -0.16 - v, v - 0.04);
   return smin(lobes, tip, 0.03);
 }
 
@@ -32,14 +33,15 @@ function body2d(x, y) {
   d = Math.min(d, Math.max(ax - tw, y - 0.95, 0.5 - y));
   // 肩と腕：上のふちはゆるい弧。腕は肩から下へ垂れ、先は丸くとがる
   const top = 0.955 - 0.045 * (ax / 0.34) * (ax / 0.34);
-  let sh = Math.max(ax - 0.34, y - top, 0.82 - y);
+  // 肩の下のふち：胴と腕のあいだはアーチ形（半だ円）に高くえぐれる
+  const q = clamp((ax - 0.172) / 0.1, -1, 1);
+  const yb = ax < 0.072 ? 0.7 : ax > 0.272 ? 0.82 : 0.7 + 0.13 * Math.sqrt(1 - q * q);
+  let sh = Math.max(ax - 0.34, y - top, (yb - y) * 0.7);
   // 腕（肩の両はし）：太さが先へ向かって細くなる、わずかに外へ反った垂れ
   for (let k = 0; k <= 8; k++) {
     const t = k / 8, cy = 0.87 - 0.2 * t, cx = 0.29 + 0.012 * t * t, r = 0.05 - 0.03 * t;
     sh = Math.min(sh, Math.hypot(ax - cx, y - cy) - r);
   }
-  // わきの下：Cの字（右）と逆Cの字（左）にえぐる
-  sh = Math.max(sh, -(Math.hypot((ax - 0.163) / 0.085, (y - 0.75) / 0.085) * 0.085 - 0.085));
   d = smin(d, sh, 0.03);
   return d;
 }
@@ -62,7 +64,13 @@ function sdf(x, y, z) {
   let d = body(x, y, z);
   // 足：脚の下端は前へ少し出た、平らで丸い足
   // （足は脚の楕円の断面にふくめる）
-  // 乳房とへそ、腹の中心をとおる隆起線
+  // 胴のまん中の縦のみぞ（胸から腰まで、前と後ろ）
+  if (y > 0.5 && y < 0.93) {
+    const fade = clamp((y - 0.5) / 0.04, 0, 1) * clamp((0.93 - y) / 0.04, 0, 1);
+    const dep = depth(y);
+    d = Math.max(d, -(Math.hypot(x * 1.2, Math.abs(z) - dep + 0.004) - 0.018 * fade));
+  }
+  // 乳房とへそ
   d = smin(d, ell(ax, y, z, 0.045, 0.82, 0.05, 0.02, 0.02, 0.016), 0.01);
   d = smin(d, cone(x, y, z, 0, 0.8, 0.055, 0, 0.6, 0.058, 0.007, 0.007), 0.006);
   // ハート形の顔の板
@@ -78,16 +86,23 @@ function sdf(x, y, z) {
     face = Math.min(face, torusAxis(u - sx * 0.075, v - 0.03, w - 0.04, 0.03, 0.013));
     face = Math.max(face, -(Math.hypot(u - sx * 0.075, v - 0.03, w - 0.05) - 0.018));
   }
-  // 高い鼻：顔からぐっと前へつき出た、先の太い鼻（先に2つの鼻の穴）
-  face = smin(face, cone(u, v, w, 0, -0.005, 0.03, 0, -0.035, 0.08, 0.026, 0.033), 0.014);
-  for (const sx of [-1, 1]) face = Math.max(face, -(Math.hypot(u - sx * 0.014, v + 0.045, w - 0.11) - 0.01));
+  // ふっくらとふくらんだほお
+  for (const sx of [-1, 1]) face = smin(face, ell(u, v, w, sx * 0.075, -0.045, 0.02, 0.06, 0.055, 0.03), 0.02);
+  // 人の鼻のような形：目のあいだから鼻すじが下へ前へ出て、先は丸くふくらみ、小鼻が両わきにはる。
+  //   鼻の穴は先の下側に2つ
+  face = smin(face, cone(u, v, w, 0, 0.03, 0.022, 0, -0.025, 0.068, 0.013, 0.02), 0.012);       // 鼻すじ
+  face = smin(face, ell(u, v, w, 0, -0.038, 0.07, 0.034, 0.028, 0.03), 0.012);                  // 鼻先
+  for (const sx of [-1, 1]) face = smin(face, ell(u, v, w, sx * 0.03, -0.047, 0.052, 0.018, 0.017, 0.022), 0.01); // 小鼻
+  for (const sx of [-1, 1]) face = Math.max(face, -ell(u, v, w, sx * 0.014, -0.066, 0.068, 0.009, 0.014, 0.01)); // 鼻の穴
   // 小さな口
   face = Math.max(face, -(Math.hypot(u, v + 0.1, w - 0.03) - 0.011));
   d = smin(d, face, 0.02);
   // 顔のうしろ（後頭部）に立つ板：まるい穴があいている
   {
     const py = y - 1.15, pz = z + 0.035;
-    let plate = Math.max((Math.hypot(py / 0.09, pz / 0.07) - 1) * 0.07, Math.abs(x) - 0.026);
+    const pa = Math.atan2(py, pz);
+    const jag = 1 - 0.13 * Math.pow(Math.max(0, Math.sin(pa * 7)), 0.6);   // ふちのギザギザ
+    let plate = Math.max((Math.hypot(py / 0.09, pz / 0.07) * (1 / jag) - 1) * 0.07 * jag, Math.abs(x) - 0.026);
     plate = Math.max(plate, -(Math.hypot(py - 0.03, pz + 0.005) - 0.032));
     d = smin(d, plate, 0.012);
   }
