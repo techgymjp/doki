@@ -82,7 +82,7 @@ Play Console の「ストアの掲載情報」に貼り付けて使います。�
 **App name** (max 30 characters)
 
 ```
-Restore It! Jomon Restore It! Jomon Pottery & Haniwa Haniwa
+Restore It! Jomon & Haniwa
 ```
 
 **Short description** (max 80 characters)
