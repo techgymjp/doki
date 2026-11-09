@@ -5,6 +5,8 @@ import { megami } from './megami.js';
 import { tora } from './tora.js';
 import { uma } from './uma.js';
 import { bujin } from './bujin.js';
+import { heart } from './heart.js';
+import { odoru } from './odoru.js';
 
 // ステージの順番。新しい出土品はここに追加する（available: true で遊べるようになる）。
 // level が上がるほど、ピースが増え、はまる判定がきびしくなり、ガイドがうすくなる。
@@ -16,4 +18,6 @@ export const STAGES = [
   { ...tora, pieces: 18, level: 5 },
   { ...uma, pieces: 20, level: 6 },
   { ...bujin, pieces: 22, level: 7 },
+  { ...heart, pieces: 22, level: 8 },
+  { ...odoru, pieces: 24, level: 9 },
 ];
