@@ -103,12 +103,22 @@ function sdf(x, y, z) {
   for (const [bx, by, bz] of [[-0.64, 1.04, 0.075], [-0.6, 0.96, 0.078], [-0.66, 0.95, 0.06], [-0.56, 0.99, 0.08], [-0.63, 0.995, 0.085]]) {
     d = smin(d, Math.hypot(x - bx, y - by, az - bz) - 0.018, 0.004);
   }
-  // 手綱：轡から首をとおって鞍へ
-  d = Math.min(d, cone(x, y, az, -0.6, 1.0, 0.085, -0.22, 0.94, 0.14, 0.011, 0.011));
-
+  // 手綱：轡から首の横の面にそって、ゆるやかに曲がりながら鞍の前へ
+  {
+    const P = [[-0.6, 1.0], [-0.5, 1.03], [-0.4, 1.0], [-0.3, 0.955], [-0.2, 0.935]];
+    let r2 = Infinity;
+    for (let i = 0; i < P.length - 1; i++) {
+      const [ax, ay] = P[i], [bx, by] = P[i + 1];
+      const vx = bx - ax, vy = by - ay, t = clamp(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy), 0, 1);
+      r2 = Math.min(r2, Math.hypot(x - ax - vx * t, y - ay - vy * t));
+    }
+    // 体の表面から少しだけ浮いた、うすいひも
+    const rein = Math.max(Math.abs(core(x, y, z) - 0.006) - 0.007, r2 - 0.011, 0.03 - az);
+    d = Math.min(d, rein);
+  }
   // 鞍：前輪（まえわ）と後輪（しずわ）の半円の板、その間の座
-  d = smin(d, arch(x, y, z, -0.2, 0.92, 0.175, 0.018), 0.012);
-  d = smin(d, arch(x, y, z, 0.06, 0.92, 0.2, 0.018), 0.012);
+  d = smin(d, arch(x, y, z, -0.2, 0.92, 0.225, 0.02), 0.012);
+  d = smin(d, arch(x, y, z, 0.06, 0.92, 0.235, 0.02), 0.012);
   d = smin(d, rbox(x, y, z, -0.07, 0.94, 0, 0.13, 0.02, 0.17, 0.015), 0.015);
   // 障泥（あおり）：胴の両わきに垂れる四角い板
   d = smin(d, rbox(x, y, az, -0.05, 0.76, 0.178, 0.17, 0.15, 0.012, 0.025), 0.008);
@@ -126,6 +136,12 @@ function sdf(x, y, z) {
     const u = nx ? lz : lx, t = nx ? lx : lz;
     const bell = Math.max(Math.abs(u) - w, Math.abs(ly) - 0.05, Math.abs(t) - 0.01);
     d = smin(d, bell - 0.004, 0.006);
+    // 表面にならぶ点の飾り（小さなこぶ）
+    for (let iy = 0; iy < 4; iy++) for (let iu = -1; iu <= 1; iu++) {
+      const by = 0.03 - iy * 0.022, bu = iu * (0.014 + 0.005 * iy);
+      const du = u - bu, dy = ly - by, dt = t - 0.014;
+      d = Math.min(d, Math.hypot(du, dy, dt) - 0.0065);
+    }
   }
 
   // 尻繋（しりがい）：鞍の後ろから尾の付け根へまわるひもと、上に並ぶ鈴
