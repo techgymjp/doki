@@ -58,18 +58,18 @@ function sdf(x, y, z) {
     const bz = 0.262 - 3.6 * x * x;
     // 断面は上が平らで前と下がはっきり角ばった出っぱり（くっきりした影ができる）
     const by = y - 0.772, bf = z - (bz + 0.03);
-    const brow = Math.max(Math.hypot(Math.max(Math.abs(by) - 0.014, 0), Math.max(bf, 0)) + Math.min(Math.max(Math.abs(by) - 0.014, bf), 0) - 0.006, Math.abs(x) - 0.195, 0.05 - z);
+    const brow = Math.max(Math.hypot(Math.max(Math.abs(by) - 0.014, 0), Math.max(bf, 0)) + Math.min(Math.max(Math.abs(by) - 0.014, bf), 0) - 0.006, Math.abs(x) - 0.195, 0.035 - Math.abs(x), 0.05 - z);   // 左右に分かれた眉（間はあく）
     d = smin(d, brow, 0.006);
   }
   // 鼻：眉の間から下へのびる、断面が三角のとがった鼻（稜線が前、角は丸い）。先ほど高く幅広い
   {
-    const t = clamp((0.765 - y) / 0.25, 0, 1);
-    const hw = 0.026 + 0.05 * t, top = 0.268 + 0.075 * Math.pow(t, 1.2);
+    const t = clamp((0.79 - y) / 0.275, 0, 1);   // 眉と眉の間の高さから始まる
+    const hw = 0.026 + 0.05 * t, top = 0.252 + 0.091 * Math.pow(t, 1.2);   // 眉間は額と同じ高さから
     const slope = (top - 0.235) / hw;                                   // 稜線から両わきへ下がる
     const wedge = (z - (top - Math.abs(x) * slope)) / Math.hypot(1, slope);
     // 下の端（鼻先）は丸く：鼻先から上へ少し斜めにした底面
     const bottom = (0.5 - y) + (z - 0.25) * 0.25;
-    const n = Math.max(wedge, y - 0.77, 0.2 - z);
+    const n = Math.max(wedge, y - 0.795, 0.2 - z);
     const nb = Math.hypot(Math.max(n, 0), Math.max(bottom, 0)) + Math.min(Math.max(n, bottom), 0);
     d = smin(d, nb - 0.008, 0.012);
     // 鼻先は丸く
