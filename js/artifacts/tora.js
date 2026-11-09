@@ -40,27 +40,50 @@ function sdf(x, y, z) {
   let d = vcyl(x, y, z, 0, BRIM_Y - 0.02, rr, 0.02);
   // 額の段（髪の生えぎわ／帽子の下のふち）
   d = smin(d, vcyl(x, y, z, 0.8, BRIM_Y - 0.02, 0.243, 0.012), 0.008);
-  // 帽子：つば＋丸いクラウン
-  d = Math.min(d, vcyl(x, y, z, BRIM_Y - 0.03, BRIM_Y + 0.01, 0.305, 0.018));
-  d = smin(d, ell(x, y, z, 0, BRIM_Y + 0.04, 0, 0.205, 0.26, 0.205), 0.02);
-  d = Math.max(d, y - 1.32);
-  // 顔：長いU字の輪郭が少し盛り上がる
-  d = smin(d, ell(x, y, z, 0, 0.6, 0.16, 0.165, 0.27, 0.09), 0.03);
-  // 長い鼻
-  d = smin(d, box(x, y, z, 0, 0.62, 0.255, 0.032, 0.12, 0.03, 0.02), 0.02);
-  d = smin(d, ell(x, y, z, 0, 0.51, 0.27, 0.042, 0.03, 0.035), 0.02);
-  // 耳（側面の板）
-  d = smin(d, box(ax, y, z, 0.245, 0.62, 0.02, 0.022, 0.1, 0.05, 0.02), 0.015);
+  // 帽子：広いつば＋低く丸いクラウン（写真）
+  d = Math.min(d, vcyl(x, y, z, BRIM_Y - 0.03, BRIM_Y + 0.01, 0.33, 0.018));
+  d = smin(d, ell(x, y, z, 0, BRIM_Y + 0.02, 0, 0.215, 0.2, 0.215), 0.02);
+  d = Math.max(d, y - 1.26);
+  // 顔：U字のあごの輪郭が少し前に出た、ゆるやかに丸い面
+  {
+    const fx = x / 0.19, fy = (y - 0.6) / 0.24;
+    const u = fy < 0 ? Math.hypot(fx, fy) : Math.abs(fx);
+    const out = (u - 1) * 0.19;
+    const face = Math.max(out, z - (0.262 - 2.6 * x * x), y - 0.8, 0.05 - z);
+    d = smin(d, face, 0.045);
+  }
+  // 眉：額の下を横一文字に走る出っぱり（両端は顔の横へ回りこむ）
+  {
+    const bz = 0.262 - 2.6 * x * x;
+    const brow = Math.max(Math.hypot(y - 0.77, Math.max(z - bz, 0)) - 0.02, Math.abs(x) - 0.19, 0.05 - z);
+    d = smin(d, brow, 0.03);
+  }
+  // 鼻：眉の間から下へ、先にいくほど幅広く高くなる長い鼻（先は丸い）
+  {
+    const t = clamp((0.76 - y) / 0.25, 0, 1);
+    const hw = 0.018 + 0.03 * t, top = 0.268 + 0.065 * Math.pow(t, 1.3);
+    const n = Math.max(Math.abs(x) - hw, z - top, y - 0.77, 0.51 - y, 0.2 - z);
+    d = smin(d, n - 0.008, 0.015);
+  }
+  // 耳：右耳（向かって左）だけ残る。横につき出た半月形の輪（左耳は欠けている）
+  if (x < 0) {
+    const ey = (y - 0.6) / 0.085, ez = (z + 0.005) / 0.05;
+    const D = (Math.hypot(ey, Math.max(ez, 0)) - 1) * 0.05;
+    let plate = Math.max(D, -ez * 0.05 - 0.02, Math.abs(ax - 0.258) - 0.014);
+    plate = Math.max(plate, -(Math.hypot((y - 0.6) / 1.4, z - 0.01) - 0.022));   // まん中の穴
+    d = smin(d, plate - 0.004, 0.012);
+  }
+
   // 首飾りの玉
   for (let k = -5; k <= 5; k++) {
     const a = k * 0.27;
-    d = Math.min(d, ell(x, y, z, Math.sin(a) * 0.3, 0.045, Math.cos(a) * 0.3, 0.038, 0.04, 0.03));
+    d = Math.min(d, ell(x, y, z, Math.sin(a) * 0.298, 0.04, Math.cos(a) * 0.298, 0.034 * Math.abs(Math.cos(a)) + 0.014 * Math.abs(Math.sin(a)), 0.034, 0.014 * Math.abs(Math.cos(a)) + 0.034 * Math.abs(Math.sin(a))));
   }
   // 目と口：中の空洞まで突き抜けるくり抜き
-  d = Math.max(d, -box(ax, y, z, 0.095, 0.705, 0.25, 0.058, 0.009, 0.2, 0.008));
-  d = Math.max(d, -box(x, y, z, 0, 0.41, 0.25, 0.05, 0.009, 0.2, 0.008));
+  d = Math.max(d, -box(ax, y, z, 0.1, 0.71, 0.25, 0.058, 0.0075, 0.2, 0.007));
+  d = Math.max(d, -box(x, y, z, 0, 0.45, 0.25, 0.052, 0.0075, 0.2, 0.007));
   // 頭のてっぺんの穴
-  d = Math.max(d, -(Math.hypot(x, z) - 0.075 + Math.max(0, 1.22 - y) * 10));
+  d = Math.max(d, -(Math.hypot(x, z) - 0.1 + Math.max(0, 1.16 - y) * 10));
   return Math.max(d, -y);
 }
 
