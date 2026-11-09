@@ -20,18 +20,17 @@ function heart2d(u, v) {
 // 正面から見た体の形（2D）：アーチ形に開いた脚、細い腰、横一文字の肩
 function body2d(x, y) {
   const ax = Math.abs(x);
-  // 脚：下へ広がる板、中はアーチ形にくりぬく
-  // 脚：腰からすそへ大きく広がる太い脚（横から見るとつり鐘形）
-  const lw = 0.055 + 0.25 * Math.pow(clamp(1 - y / 0.66, 0, 1), 1.05);
-  let legs = Math.max(ax - lw, y - 0.66, -y);
-  // 脚のあいだ：高いアーチ形のあき。内側のふちは下で少し内へ張り出す（足先が広がる）
-  const iw = 0.075 - 0.025 * Math.pow(clamp(1 - y / 0.2, 0, 1), 1.5);
-  const open = Math.min(Math.max(ax - iw, y - 0.38), Math.hypot(x / 0.075, (y - 0.38) / 0.1) * 0.075 - 0.075);
+  // 脚：短くどっしりした脚。外側のふちは丸くふくらんで下へ広がり（つり鐘形）、足先でさらに少し張り出す
+  const lt = clamp(y / 0.52, 0, 1);
+  const lw = 0.07 + 0.215 * Math.sqrt(1 - lt) + 0.02 * clamp(1 - y / 0.06, 0, 1);
+  let legs = Math.max(ax - lw, y - 0.52, -y);
+  // 脚のあいだ：まるい馬蹄形のアーチ（下の口は少しすぼまり、足先が内側へ向く）
+  const open = Math.min(Math.hypot(x, y - 0.165) - 0.1, Math.max(ax - 0.068, y - 0.165));
   legs = Math.max(legs, -open);
   // 腰〜胸：腰で細くくびれ、肩へ広がる
   // 胴：首から腰まで細い柱のような胴（胸でわずかに広がる）
   const tw = 0.05 + 0.03 * clamp((y - 0.7) / 0.18, 0, 1);
-  const torso = Math.max(ax - tw, y - 0.92, 0.55 - y);
+  const torso = Math.max(ax - tw, y - 0.92, 0.45 - y);
   // 肩から腕：首の両わきから外へ下がる弓なりの板が、そのまま腕になって垂れる。
   //   胴と腕のあいだ（わきの下）はアーチ形にあく
   const top = 0.955 - 0.08 * Math.pow(ax / 0.3, 2);
@@ -45,13 +44,13 @@ function body2d(x, y) {
   arms = Math.max(arms, Math.hypot(Math.max(ax - aw + 0.03, 0), Math.max(0.745 - y, 0)) - 0.03);
   return smin(smin(legs, torso, 0.04), arms, 0.025);
 }
-function depth(y) { return 0.052 + 0.11 * Math.pow(clamp(1 - y / 0.66, 0, 1), 1.4); }   // 前後の厚みの半分（すそほど厚い）   // 前後の厚みの半分（脚は厚く、上へなめらかに薄く）
+function depth(y) { return 0.052 + 0.1 * Math.sqrt(clamp(1 - y / 0.55, 0, 1)); }   // 前後の厚みの半分（すそほど厚い）   // 前後の厚みの半分（脚は厚く、上へなめらかに薄く）
 
 function body(x, y, z) {
   const ax = Math.abs(x);
   const b2 = body2d(x, y);
   const dz = Math.abs(z) - depth(y);
-  const R = y < 0.6 ? 0.05 : 0.03;   // 脚は前後に丸く、ぼってりと
+  const R = y < 0.5 ? 0.045 : 0.03;   // 脚は前後に丸く、ぼってりと
   let d = Math.hypot(Math.max(b2 + R, 0), Math.max(dz + R, 0)) + Math.min(Math.max(b2 + R, dz + R), 0) - R;
   // 首
   d = smin(d, cone(x, y, z, 0, 0.92, 0, 0, 1.06, 0.02, 0.05, 0.045), 0.03);
@@ -116,7 +115,7 @@ float patH(vec3 p) {
   // 脚：横の細い平行線の帯と、ふちの点の列
   else {
     g = max(g, htLine(fract(p.y / 0.02) - 0.5, 0.13) * 0.85);
-    float lw = 0.055 + 0.25 * pow(clamp(1.0 - p.y / 0.66, 0.0, 1.0), 1.05);
+    float lw = 0.07 + 0.215 * sqrt(1.0 - clamp(p.y / 0.52, 0.0, 1.0));
     g = max(g, htLine(length(vec2((ax - lw + 0.014) / 0.016, fract(p.y / 0.018) - 0.5)), 0.35));
   }
   return -g * 0.0022 + (htHash(floor(p * 150.0)) - 0.5) * 0.00015;
