@@ -50,8 +50,21 @@ function body(x, y, z) {
   const ax = Math.abs(x);
   const b2 = body2d(x, y);
   const dz = Math.abs(z) - depth(y);
-  const R = y < 0.5 ? 0.045 : 0.03;   // 脚は前後に丸く、ぼってりと
+  const R = 0.03;
   let d = Math.hypot(Math.max(b2 + R, 0), Math.max(dz + R, 0)) + Math.min(Math.max(b2 + R, dz + R), 0) - R;
+  // 脚：断面がまるい（角のない）脚。各高さで、脚の幅と前後の厚みの楕円にする
+  if (y < 0.56) {
+    const lw = 0.07 + 0.215 * Math.sqrt(1 - clamp(y / 0.52, 0, 1)) + 0.02 * clamp(1 - y / 0.06, 0, 1);
+    const inner = y < 0.165 ? 0.068 : y < 0.265 ? Math.sqrt(Math.max(0, 0.01 - (y - 0.165) * (y - 0.165))) : 0;
+    const c = (inner + lw) / 2, hw = (lw - inner) / 2;
+    const dep = depth(y);
+    let leg = (Math.hypot((ax - c) / hw, z / dep) - 1) * Math.min(hw, dep);
+    // アーチの上は左右の脚がひとつにつながる（なめらかに）
+    const merged = Math.max((Math.hypot(ax / lw, z / dep) - 1) * Math.min(lw, dep), 0.25 - y);
+    leg = smin(leg, merged, 0.035);
+    leg = Math.max(leg, -y, y - 0.54);
+    d = y < 0.5 ? leg : smin(Math.max(d, 0.5 - y), leg, 0.03);
+  }
   // 首
   d = smin(d, cone(x, y, z, 0, 0.92, 0, 0, 1.06, 0.02, 0.05, 0.045), 0.03);
   return d;
@@ -61,7 +74,7 @@ function sdf(x, y, z) {
   const ax = Math.abs(x);
   let d = body(x, y, z);
   // 足：脚の下端は前へ少し出た、平らで丸い足
-  d = smin(d, ell(ax, y, z, 0.19, 0.03, 0.0, 0.11, 0.03, 0.16), 0.03);
+  // （足は脚の楕円の断面にふくめる）
   // 乳房とへそ、腹の中心をとおる隆起線
   d = smin(d, ell(ax, y, z, 0.045, 0.82, 0.05, 0.02, 0.02, 0.016), 0.01);
   d = smin(d, cone(x, y, z, 0, 0.8, 0.055, 0, 0.6, 0.058, 0.007, 0.007), 0.006);
@@ -76,9 +89,9 @@ function sdf(x, y, z) {
     face = Math.min(face, torusAxis(u - sx * 0.075, v - 0.03, w - 0.04, 0.03, 0.013));
     face = Math.max(face, -(Math.hypot(u - sx * 0.075, v - 0.03, w - 0.05) - 0.018));
   }
-  // 大きな鼻（前へつき出たこぶ）と鼻の穴
-  face = smin(face, ell(u, v, w, 0, -0.025, 0.045, 0.04, 0.035, 0.035), 0.012);
-  for (const sx of [-1, 1]) face = Math.max(face, -(Math.hypot(u - sx * 0.014, v + 0.04, w - 0.075) - 0.009));
+  // 高い鼻：顔からぐっと前へつき出た、先の太い鼻（先に2つの鼻の穴）
+  face = smin(face, cone(u, v, w, 0, -0.005, 0.03, 0, -0.035, 0.08, 0.026, 0.033), 0.014);
+  for (const sx of [-1, 1]) face = Math.max(face, -(Math.hypot(u - sx * 0.014, v + 0.045, w - 0.11) - 0.01));
   // 小さな口
   face = Math.max(face, -(Math.hypot(u, v + 0.1, w - 0.03) - 0.011));
   d = smin(d, face, 0.02);
