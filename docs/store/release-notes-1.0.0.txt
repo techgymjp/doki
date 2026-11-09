@@ -1,0 +1,16 @@
+<ja-JP>
+はじめてのリリースです。
+・こなごなに割れた出土品を、3Dのピースを組み立てて復元するパズル
+・火焔型土器から埴輪 踊る人々まで、全9ステージ（国宝も登場）
+・ヒント、ガイド、広告を見て次のピースをはめる「おまかせ」
+・クリアすると出土品の解説が読めます
+・日本語・英語対応、オフラインでも遊べます
+</ja-JP>
+<en-US>
+First release.
+- A 3D puzzle where you rebuild shattered ancient Japanese artifacts piece by piece
+- 9 stages, from flame-style pottery to the Haniwa "Dancing People" (including National Treasures)
+- Hint, Guide, and "Auto" (watch an ad to snap the next piece into place)
+- Read about each artifact after you restore it
+- Available in English and Japanese, playable offline
+</en-US>
