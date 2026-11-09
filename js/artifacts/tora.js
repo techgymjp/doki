@@ -46,33 +46,42 @@ function sdf(x, y, z) {
   d = Math.max(d, y - 1.26);
   // 顔：U字のあごの輪郭が少し前に出た、ゆるやかに丸い面
   {
-    const fx = x / 0.19, fy = (y - 0.6) / 0.24;
+    const fx = x / 0.235, fy = (y - 0.6) / 0.24;
     const u = fy < 0 ? Math.hypot(fx, fy) : Math.abs(fx);
-    const out = (u - 1) * 0.19;
-    const face = Math.max(out, z - (0.262 - 2.6 * x * x), y - 0.8, 0.05 - z);
-    d = smin(d, face, 0.045);
+    const out = (u - 1) * 0.2;
+    // 横はほおが首の円筒へなめらかに沈み、あごの下だけ段になる
+    const face = Math.max(out, z - (0.262 - 3.6 * x * x), y - 0.8, 0.05 - z);
+    d = smin(d, face, 0.05);
   }
   // 眉：額の下を横一文字に走る出っぱり（両端は顔の横へ回りこむ）
   {
-    const bz = 0.262 - 2.6 * x * x;
+    const bz = 0.262 - 3.6 * x * x;
     const brow = Math.max(Math.hypot(y - 0.77, Math.max(z - bz, 0)) - 0.02, Math.abs(x) - 0.19, 0.05 - z);
     d = smin(d, brow, 0.03);
   }
-  // 鼻：眉の間から下へ、先にいくほど幅広く高くなる長い鼻（先は丸い）
+  // 鼻：眉の間から下へのびる、断面が三角のとがった鼻（稜線が前、角は丸い）。先ほど高く幅広い
   {
-    const t = clamp((0.76 - y) / 0.25, 0, 1);
-    const hw = 0.018 + 0.03 * t, top = 0.268 + 0.065 * Math.pow(t, 1.3);
-    const n = Math.max(Math.abs(x) - hw, z - top, y - 0.77, 0.51 - y, 0.2 - z);
-    d = smin(d, n - 0.008, 0.015);
+    const t = clamp((0.765 - y) / 0.25, 0, 1);
+    const hw = 0.026 + 0.05 * t, top = 0.268 + 0.075 * Math.pow(t, 1.2);
+    const slope = (top - 0.235) / hw;                                   // 稜線から両わきへ下がる
+    const wedge = (z - (top - Math.abs(x) * slope)) / Math.hypot(1, slope);
+    // 下の端（鼻先）は丸く：鼻先から上へ少し斜めにした底面
+    const bottom = (0.5 - y) + (z - 0.25) * 0.25;
+    const n = Math.max(wedge, y - 0.77, 0.2 - z);
+    const nb = Math.hypot(Math.max(n, 0), Math.max(bottom, 0)) + Math.min(Math.max(n, bottom), 0);
+    d = smin(d, nb - 0.008, 0.012);
+    // 鼻先は丸く
   }
+
   // 耳：右耳（向かって左）だけ残る。横につき出た半月形の輪（左耳は欠けている）
   if (x < 0) {
-    const ey = (y - 0.6) / 0.085, ez = (z + 0.005) / 0.05;
-    const D = (Math.hypot(ey, Math.max(ez, 0)) - 1) * 0.05;
-    let plate = Math.max(D, -ez * 0.05 - 0.02, Math.abs(ax - 0.258) - 0.014);
-    plate = Math.max(plate, -(Math.hypot((y - 0.6) / 1.4, z - 0.01) - 0.022));   // まん中の穴
-    d = smin(d, plate - 0.004, 0.012);
+    // 縦に長い楕円の輪（大きな穴）。眉の高さから鼻先の高さまで
+    const ey = (y - 0.62) / 0.11, ez = (z - 0.005) / 0.06;
+    const r = Math.hypot(ey, ez);
+    const ring = Math.max(Math.abs(r - 0.68) * 0.07 - 0.022, Math.abs(ax - 0.262) - 0.016);
+    d = smin(d, ring, 0.01);
   }
+
 
   // 首飾りの玉
   for (let k = -5; k <= 5; k++) {
@@ -80,8 +89,13 @@ function sdf(x, y, z) {
     d = Math.min(d, ell(x, y, z, Math.sin(a) * 0.298, 0.04, Math.cos(a) * 0.298, 0.034 * Math.abs(Math.cos(a)) + 0.014 * Math.abs(Math.sin(a)), 0.034, 0.014 * Math.abs(Math.cos(a)) + 0.034 * Math.abs(Math.sin(a))));
   }
   // 目と口：中の空洞まで突き抜けるくり抜き
-  d = Math.max(d, -box(ax, y, z, 0.1, 0.71, 0.25, 0.058, 0.0075, 0.2, 0.007));
-  d = Math.max(d, -box(x, y, z, 0, 0.45, 0.25, 0.052, 0.0075, 0.2, 0.007));
+  // 目は中央が少し上がる弓なり、口は両端が少し下がる弓なり
+  {
+    const te = (ax - 0.1) / 0.058, ye = 0.71 + 0.007 * (1 - te * te);
+    d = Math.max(d, -box(ax, y - ye + 0.71, z, 0.1, 0.71, 0.25, 0.058, 0.0085, 0.2, 0.007));
+    const tm = x / 0.052, ym = 0.45 + 0.006 * (1 - tm * tm);
+    d = Math.max(d, -box(x, y - ym + 0.45, z, 0, 0.45, 0.25, 0.052, 0.0085, 0.2, 0.007));
+  }
   // 頭のてっぺんの穴
   d = Math.max(d, -(Math.hypot(x, z) - 0.1 + Math.max(0, 1.16 - y) * 10));
   return Math.max(d, -y);
@@ -120,7 +134,7 @@ export const tora = {
   sdf,
   core,
   thickness: 0.04,
-  voxel: 0.0135,
+  voxel: 0.011,
   bounds: { min: [-0.36, -0.02, -0.34], max: [0.36, 1.34, 0.34] },
   height: 1.32,
   patternGLSL,
