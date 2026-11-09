@@ -118,3 +118,11 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .bar { width: 200px; height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin: 8px auto 0; }
 .bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+/* ステージ名は1行におさめる（せまい画面では文字を小さく） */
+.artifact .nm { white-space: nowrap; }
+@media (max-width: 480px) {
+  .artifact { padding: 7px 3px; }
+  .artifact .nm { font-size: 12.5px; letter-spacing: -0.02em; }
+  .artifact .kind { font-size: 10px; }
+}

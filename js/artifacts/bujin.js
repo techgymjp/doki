@@ -221,8 +221,8 @@ vec3 patC(vec3 p, float h) {
 export const bujin = {
   id: 'bujin',
   type: 'sdf',
-  name: '埴輪 挂甲の武人',
-  ruby: 'はにわ けいこうのぶじん',
+  name: '挂甲の武人',
+  ruby: 'けいこうのぶじん',
   kind: '埴輪',
   era: '古墳時代後期（6世紀）',
   place: '群馬県太田市',
