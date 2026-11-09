@@ -140,39 +140,43 @@ function rib(dd, along, w, h) { return Math.max(Math.abs(dd - h) - h, Math.abs(a
 // 頭部（写真をもとに作り込む）：衝角付冑・鋲・頬当と錣・顔（3Dデータの頭の位置と大きさに合わせる）
 function head(x, y, z) {
   const hx = x + 0.01, ax = Math.abs(hx);
-  let d = ell(hx, y, z, 0, 1.19, 0.04, 0.058, 0.075, 0.062);                 // 顔と頭
-  const bowl = ell(hx, y, z, 0, 1.255, 0.015, 0.082, 0.09, 0.09);           // 冑のはち
-  d = Math.min(d, Math.max(bowl, 1.245 - y));
-  d = smin(d, cone(hx, y, z, 0, 1.335, 0.03, 0, 1.29, 0.128, 0.017, 0.011), 0.012);   // 衝角
-  d = Math.min(d, Math.max(Math.abs(ell(hx, y, z, 0, 1.255, 0.015, 0.088, 0.096, 0.096)) - 0.006, Math.abs(y - 1.25) - 0.011)); // ふちの帯
-  for (const ang of [-0.9, 0, 0.9, Math.PI - 0.6, Math.PI + 0.6]) {         // 鋲
-    for (let k = 0; k < 4; k++) {
-      const el = 0.22 + k * 0.33;
-      const px = Math.sin(ang) * Math.cos(el) * 0.084, py = 1.255 + Math.sin(el) * 0.092, pz = 0.015 + Math.cos(ang) * Math.cos(el) * 0.092;
-      d = Math.min(d, Math.hypot(hx - px, y - py, z - pz) - 0.008);
+  // 顔：まるく平らな顔（フードの奥に少し引っこむ）
+  let d = ell(hx, y, z, 0, 1.185, 0.035, 0.056, 0.072, 0.056);
+  // 冑と頬当：頭をすっぽりおおうフードのような形。正面だけ顔の形にあく
+  const outer = ell(hx, y, z, 0, 1.2, 0.0, 0.098, 0.135, 0.1);
+  const inner = ell(hx, y, z, 0, 1.2, 0.0, 0.076, 0.115, 0.08);
+  let hood = Math.max(outer, -inner, 1.075 - y);
+  const win = Math.hypot(hx / 0.058, (y - 1.17) / 0.085) - 1;            // 顔の窓（たまご形）
+  hood = Math.max(hood, -Math.max(win * 0.058, -z));
+  d = Math.min(d, hood);
+  // はちの下のふちの帯（ひさし）と、顔の窓のふち
+  d = Math.min(d, Math.max(Math.abs(ell(hx, y, z, 0, 1.2, 0.0, 0.104, 0.14, 0.106)) - 0.006, Math.abs(y - 1.255) - 0.01));
+  d = Math.min(d, Math.max(Math.abs(win * 0.058) - 0.006, Math.abs(outer) - 0.009, 0.0 - z, y - 1.255));
+  // 衝角
+  d = smin(d, cone(hx, y, z, 0, 1.33, 0.015, 0, 1.27, 0.09, 0.014, 0.009), 0.012);
+  // 鋲（はちの上のこぶ）
+  for (const ang of [-1.2, -0.6, 0, 0.6, 1.2, Math.PI - 0.6, Math.PI, Math.PI + 0.6]) {
+    for (let k = 0; k < 3; k++) {
+      const el = 0.55 + k * 0.32;                                          // はちの表面の上に並べる
+      const px = Math.sin(ang) * Math.cos(el) * 0.098, py = 1.2 + Math.sin(el) * 0.135, pz = Math.cos(ang) * Math.cos(el) * 0.1;
+      d = Math.min(d, Math.hypot(hx - px, y - py, z - pz) - 0.0085);
     }
   }
-  // 頬当と錣：頭の両わきと後ろを下までおおう広がった板（顔の前はあける）
-  const sh = frustum(hx, y, z - 0.015, 1.25, 1.115, 0.086, 0.104, 1.0, 0.004);
-  let guard = Math.max(sh, -(sh + 0.013));
-  guard = Math.max(guard, -Math.max(ax - 0.05, 0.03 - z));
-  d = Math.min(d, guard);
-  // 顔：細い目のくり抜き、鼻、口、あごの下の結び目
-  d = Math.max(d, -box(ax, y, z, 0.024, 1.212, 0.1, 0.016, 0.0055, 0.03, 0.003));
-  d = smin(d, ell(hx, y, z, 0, 1.183, 0.098, 0.011, 0.02, 0.014), 0.008);
-  d = Math.max(d, -box(hx, y, z, 0, 1.148, 0.1, 0.015, 0.005, 0.03, 0.003));
-  for (const sx of [-1, 1]) d = Math.min(d, Math.hypot(Math.hypot(hx - sx * 0.016, y - 1.105) - 0.012, z - 0.09) - 0.005);
+  // 顔：細い目のくり抜き、長い鼻、口、あごの下の結び目
+  d = Math.max(d, -box(ax, y, z, 0.023, 1.2, 0.085, 0.016, 0.005, 0.03, 0.003));
+  d = smin(d, cone(hx, y, z, 0, 1.2, 0.088, 0, 1.162, 0.1, 0.008, 0.013), 0.008);
+  d = Math.max(d, -box(hx, y, z, 0, 1.138, 0.085, 0.015, 0.0045, 0.03, 0.003));
+  for (const sx of [-1, 1]) d = Math.min(d, Math.hypot(Math.hypot(hx - sx * 0.016, y - 1.09) - 0.012, z - 0.075) - 0.005);
   return d;
 }
 
 function sdf(x, y, z) {
   const dd = dataSdf(x, y, z);
-  let d = smin(Math.max(dd, y - 1.125), head(x, y, z), 0.012);              // 首から上は作り込んだ頭
+  let d = smin(Math.max(dd, y - 1.1), head(x, y, z), 0.012);              // 首から上は作り込んだ頭
   const ax = Math.abs(x + 0.005);
-  if (y > 0.59 && y < 0.78) for (const yb of [0.628, 0.678, 0.728]) d = Math.min(d, rib(dd, y - yb, 0.008, 0.005));   // 草摺の段
-  if (y > 0.78 && y < 1.02 && ax < 0.11) for (let yb = 0.8; yb < 1.0; yb += 0.038) d = Math.min(d, rib(dd, y - yb, 0.005, 0.004)); // 小札の段
-  if (y > 0.94 && y < 1.11 && ax > 0.1) for (const yb of [0.97, 1.0, 1.03, 1.06]) d = Math.min(d, rib(dd, y - yb - (ax - 0.1) * 0.3, 0.005, 0.004)); // 肩甲
-  if (y > 0.33 && y < 0.5) for (const yb of [0.355, 0.48]) d = Math.min(d, rib(dd, y - yb, 0.011, 0.006));   // ひざ下・足首の帯
+  if (y > 0.59 && y < 0.78) for (const yb of [0.628, 0.678, 0.728]) d = Math.min(d, rib(dd, y - yb, 0.011, 0.007));   // 草摺の段
+  if (y > 0.94 && y < 1.11 && ax > 0.1) for (const yb of [0.97, 1.0, 1.03, 1.06]) d = Math.min(d, rib(dd, y - yb - (ax - 0.1) * 0.3, 0.007, 0.006)); // 肩甲
+  if (y > 0.33 && y < 0.5) for (const yb of [0.355, 0.48]) d = Math.min(d, rib(dd, y - yb, 0.014, 0.008));   // ひざ下・足首の帯
   // 胸の2つの結び目（引合せ）
   for (const yk of [1.0, 0.865]) {
     const kx = x + 0.005, ky = y - yk;
@@ -180,17 +184,11 @@ function sdf(x, y, z) {
     k2 = Math.min(k2, Math.max(Math.abs(Math.abs(kx) - 0.01 - (-ky) * 0.3) - 0.004, ky, -ky - 0.03));
     if (z > 0) d = Math.min(d, Math.max(Math.abs(dd - 0.005) - 0.005, k2));
   }
-  // 大刀：腰の前に横たえ、左手（向かって右）でさやをにぎる。柄は向かって左、柄頭に輪
-  d = Math.min(d, cone(x, y, z, -0.11, 0.752, 0.175, -0.04, 0.745, 0.185, 0.015, 0.016));
-  d = Math.min(d, Math.hypot(Math.hypot(x + 0.128, y - 0.754) - 0.016, z - 0.173) - 0.0055);
-  d = Math.min(d, cone(x, y, z, -0.04, 0.745, 0.185, -0.032, 0.744, 0.186, 0.028, 0.028));
-  d = Math.min(d, cone(x, y, z, -0.032, 0.744, 0.186, 0.17, 0.705, 0.16, 0.021, 0.019));
-  d = smin(d, ell(x, y, z, 0.095, 0.73, 0.18, 0.03, 0.028, 0.03), 0.01);   // 左手のこぶし
   // 弓：左手でにぎり、顔の横までまっすぐ立てる
-  d = Math.min(d, cone(x, y, z, 0.1, 0.74, 0.19, 0.095, 1.3, 0.1, 0.01, 0.008));
+  d = Math.min(d, cone(x, y, z, 0.11, 0.7, 0.165, 0.125, 1.3, 0.11, 0.016, 0.013));
   return Math.max(d, -y);
 }
-const core = (x, y, z) => Math.min(Math.max(dataSdf(x, y, z), y - 1.125), ell(x + 0.01, y, z, 0, 1.19, 0.04, 0.05, 0.065, 0.05));
+const core = (x, y, z) => Math.min(Math.max(dataSdf(x, y, z), y - 1.1), ell(x + 0.01, y, z, 0, 1.185, 0.03, 0.05, 0.065, 0.05));
 
 // 柄頭の輪（環頭）
 function plateRing(x, y, z) {
@@ -204,67 +202,25 @@ const patternGLSL = `
 float bjHash(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
 float bjLine(float d, float w) { float x = abs(d) / w; return x < 1.0 ? 0.5 + 0.5 * cos(3.14159265 * x) : 0.0; }
 float bjDot(vec2 q, float r) { return bjLine(length(q), r); }
+float bjNoise(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(bjHash(i), bjHash(i + vec3(1,0,0)), f.x), mix(bjHash(i + vec3(0,1,0)), bjHash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(bjHash(i + vec3(0,0,1)), bjHash(i + vec3(1,0,1)), f.x), mix(bjHash(i + vec3(0,1,1)), bjHash(i + vec3(1,1,1)), f.x), f.y), f.z); }
 float patH(vec3 p) {
-  vec2 c = vec2(p.x + 0.005, p.z - 0.05);
+  // 素焼きの土の肌：なめらかなむら（点々にならないよう、ぼかしたノイズ）
+  float h = (bjNoise(p * 70.0) - 0.5) * 0.35;
+  vec2 c = vec2(p.x + 0.005, p.z - 0.04);
   float ang = atan(c.x, c.y);
-  float ax = abs(c.x);
-  float g = 0.0;
-  // 台：上下のふちの線と、横の小さな穴
-  if (p.y < 0.31) {
-    g = max(g, bjLine(p.y - 0.035, 0.006));
-    g = max(g, bjLine(p.y - 0.28, 0.006));
-    g = max(g, bjDot(vec2(p.y - 0.17, ang - 1.6), 0.014) * 1.5);
-  }
-  // 臑当・膝甲：縦の板の合わせ目と横の帯、ひざ下の結び
-  else if (p.y < 0.585) {
-    float la = atan(abs(c.x) - 0.07, c.y + 0.02);
-    g = max(g, bjLine(fract(la * 1.3) - 0.5, 0.05));
-    g = max(g, bjLine(p.y - 0.45, 0.007));
-    g = max(g, bjLine(p.y - 0.355, 0.006));
-  }
-  // 草摺：3段の段の線、縦の小札、段のすその綴じ目の点
-  else if (p.y < 0.775) {
-    for (int i = 0; i < 3; i++) {
-      float yb = 0.62 + float(i) * 0.05;
-      g = max(g, bjLine(p.y - yb, 0.006));
-      g = max(g, bjDot(vec2(p.y - yb - 0.012, (fract(ang * 14.0) - 0.5) * 0.05), 0.0055));
-    }
-    g = max(g, bjLine(fract(ang * 7.0) - 0.5, 0.05) * 0.8);
-  }
-  // 胴：小札の段（横）と段ごとにずれた綴じ目（縦）、右わきの引合せ
-  else if (p.y < 1.12) {
-    float row = (p.y - 0.78) / 0.035;
-    if (p.y < 0.98 || ax < 0.1) {
-      g = max(g, bjLine(fract(ang * 6.0 + floor(row) * 0.5) - 0.5, 0.06) * 0.85);
-    }
-    // 肩甲：肩をおおう板の横の段
-    if (p.y > 0.95 && ax > 0.09) g = max(g, bjLine(fract((p.y - 0.95) / 0.025) - 0.5, 0.12));
-    // 籠手：腕の横線
-    if (p.y < 0.98 && ax > 0.12) g = max(g, bjLine(fract(p.y / 0.03) - 0.5, 0.1) * 0.7);
-  }
-  // 冑：鋲の列と縦の帯、頬当の格子、顔（目と口）
-  else {
-    vec2 hc = vec2(p.x + 0.01, p.z - 0.025);
-    float ha = atan(hc.x, hc.y);
-    bool face = p.z > 0.06 && abs(p.x + 0.01) < 0.045 && p.y < 1.29;
-    if (face) {
-      g = 0.0;
-    } else if (p.y > 1.27) {
-      for (int i = -2; i <= 2; i++) g = max(g, bjLine(ha - float(i) * 0.9, 0.12));
-      g = max(g, bjDot(vec2(fract(p.y / 0.022) - 0.5, (fract(ha / 0.45) - 0.5)) * 0.022, 0.0055) * 1.4);
-      g = max(g, bjLine(p.y - 1.275, 0.007));
-    } else {
-      g = max(g, bjLine(fract(p.y / 0.025) - 0.5, 0.12));
-      g = max(g, bjLine(fract(ha / 0.35) - 0.5, 0.1));
-    }
-  }
-  return -g * 0.0024 + (bjHash(floor(p * 200.0)) - 0.5) * 0.00012;
+  // 胴と草摺：縦に長い板の合わせ目（太めでやわらかい溝）
+  if (p.y > 0.6 && p.y < 1.02 && abs(c.x) < 0.14 && c.y > -0.02) h -= bjLine(fract(ang * 4.0) - 0.5, 0.11) * 1.4;
+  // 頬当（顔の両わき）の格子
+  if (p.y > 1.08 && p.y < 1.25 && (abs(p.x + 0.01) > 0.06 || p.z < -0.02)) h -= max(bjLine(fract(p.y / 0.03) - 0.5, 0.14), bjLine(fract(p.z / 0.03) - 0.5, 0.14)) * 1.6;
+  return h * 0.0011;
 }
 vec3 patC(vec3 p, float h) {
   vec3 c = vec3(1.0);
   float n = sin(p.x * 13.0 + 3.0 * sin(p.y * 9.0)) * sin(p.y * 15.0 + p.z * 11.0);
   c *= 0.92 + 0.1 * n;
-  c *= 1.0 - pow(clamp(-h / 0.0024, 0.0, 1.0), 0.7) * 0.45;
+  c *= 1.0 - clamp(-h / 0.0016, 0.0, 1.0) * 0.25;
   return c;
 }
 `;
@@ -282,12 +238,12 @@ export const bujin = {
   sdf,
   core,
   thickness: 0.035,
-  voxel: 0.0105,
+  voxel: 0.009,
   bounds: { min: [-0.26, -0.02, -0.24], max: [0.24, 1.38, 0.23] },
   height: 1.36,
   clearRadius: 0.5,
   patternGLSL,
-  bumpStrength: 1.5,
+  bumpStrength: 1.0,
   clayColor: [0.72, 0.45, 0.3],
   innerColor: [0.5, 0.33, 0.22],
   fractureColor: [0.8, 0.58, 0.42],

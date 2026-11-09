@@ -178,6 +178,7 @@ function backToTitle() {
 }
 
 function showResult(r) {
+  lastResult = r;
   const cur = STAGES[stageIndex];
   saveCleared(cur.id);
   $('result-title').innerHTML = `<ruby>${cur.name}<rt>${cur.ruby}</rt></ruby>`;
@@ -195,6 +196,30 @@ function showResult(r) {
   const wide = innerWidth >= 1000 && innerWidth > innerHeight;
   game.setViewShift(wide ? 0.17 : 0, wide ? 0 : 0.18);
 }
+
+// ---- シェア ----
+const SHARE_URL = 'https://techgym.jp/column/claude-code-game-doki/';
+let lastResult = null;
+function shareText() {
+  const cur = STAGES[stageIndex];
+  const t = lastResult ? fmt(lastResult.time) : '';
+  return `「復元せよ 土器・土偶・埴輪」でステージ${stageIndex + 1}「${cur.name}」を${t}で復元しました！ #復元せよ`;
+}
+const openShare = (u) => window.open(u, '_blank', 'noopener,noreferrer,width=600,height=520');
+$('share-x').addEventListener('click', () => openShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText())}&url=${encodeURIComponent(SHARE_URL)}`));
+$('share-line').addEventListener('click', () => openShare(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(SHARE_URL)}&text=${encodeURIComponent(shareText())}`));
+$('share-fb').addEventListener('click', () => openShare(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SHARE_URL)}`));
+$('share-copy').addEventListener('click', async () => {
+  const text = `${shareText()} ${SHARE_URL}`;
+  try {
+    if (navigator.share) { await navigator.share({ text: shareText(), url: SHARE_URL }); return; }
+    await navigator.clipboard.writeText(text);
+    toast('リンクをコピーしました');
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    window.prompt('コピーしてください', text);
+  }
+});
 
 $('btn-next').addEventListener('click', async () => {
   const next = nextPlayable();
