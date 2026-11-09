@@ -132,7 +132,7 @@ function procSdf(x, y, z) {
 import { loadSdfGrid } from './sdfdata.js';
 let dataSdf = null;
 async function prepare() {
-  if (!dataSdf) dataSdf = await loadSdfGrid('bujin');
+  /* 形は写真をもとに作るので、3Dデータは読み込まない */
 }
 // 3Dデータの表面にそって浮き出る細い帯（よろいの段など）
 function rib(dd, along, w, h) { return Math.max(Math.abs(dd - h) - h, Math.abs(along) - w); }
@@ -141,54 +141,98 @@ function rib(dd, along, w, h) { return Math.max(Math.abs(dd - h) - h, Math.abs(a
 function head(x, y, z) {
   const hx = x + 0.01, ax = Math.abs(hx);
   // 顔：まるく平らな顔（フードの奥に少し引っこむ）
-  let d = ell(hx, y, z, 0, 1.185, 0.035, 0.056, 0.072, 0.056);
+  let d = ell(hx, y, z, 0, 1.18, 0.03, 0.054, 0.07, 0.058);
   // 冑と頬当：頭をすっぽりおおうフードのような形。正面だけ顔の形にあく
   const outer = ell(hx, y, z, 0, 1.2, 0.0, 0.098, 0.135, 0.1);
   const inner = ell(hx, y, z, 0, 1.2, 0.0, 0.076, 0.115, 0.08);
-  let hood = Math.max(outer, -inner, 1.075 - y);
+  let hood = Math.max(outer, -inner, 1.088 - y);
   const win = Math.hypot(hx / 0.058, (y - 1.17) / 0.085) - 1;            // 顔の窓（たまご形）
   hood = Math.max(hood, -Math.max(win * 0.058, -z));
   d = Math.min(d, hood);
+  // 錣：冑の下から後ろ・横へ広がる首を守る板
+  {
+    const sh = frustum(hx, y, z, 1.13, 1.07, 0.094, 0.112, 0.98, 0.004);
+    d = Math.min(d, Math.max(sh, -(sh + 0.01), z - 0.02));
+  }
   // はちの下のふちの帯（ひさし）と、顔の窓のふち
   d = Math.min(d, Math.max(Math.abs(ell(hx, y, z, 0, 1.2, 0.0, 0.104, 0.14, 0.106)) - 0.006, Math.abs(y - 1.255) - 0.01));
-  d = Math.min(d, Math.max(Math.abs(win * 0.058) - 0.006, Math.abs(outer) - 0.009, 0.0 - z, y - 1.255));
+  d = Math.min(d, Math.max(Math.abs(win * 0.058) - 0.006, Math.abs(outer) - 0.009, 0.0 - z, y - 1.255, 1.12 - y));
+  // はちの縦の帯（地板をとめる帯金）
+  for (const ang of [0, -1.1, 1.1, Math.PI]) {
+    const cx = Math.sin(ang), cz = Math.cos(ang);
+    const side = hx * cz - z * cx, fwd = hx * cx + z * cz;
+    const band = Math.max(Math.abs(outer) - 0.006, Math.abs(side) - 0.011, 1.25 - y, -fwd);
+    d = Math.min(d, band);
+  }
   // 衝角
   d = smin(d, cone(hx, y, z, 0, 1.33, 0.015, 0, 1.27, 0.09, 0.014, 0.009), 0.012);
   // 鋲（はちの上のこぶ）
-  for (const ang of [-1.2, -0.6, 0, 0.6, 1.2, Math.PI - 0.6, Math.PI, Math.PI + 0.6]) {
+  for (const ang of [-1.1, 1.1, Math.PI, -0.55, 0.55]) {
     for (let k = 0; k < 3; k++) {
-      const el = 0.55 + k * 0.32;                                          // はちの表面の上に並べる
-      const px = Math.sin(ang) * Math.cos(el) * 0.098, py = 1.2 + Math.sin(el) * 0.135, pz = Math.cos(ang) * Math.cos(el) * 0.1;
-      d = Math.min(d, Math.hypot(hx - px, y - py, z - pz) - 0.0085);
+      const el = 0.45 + k * 0.32;                                          // はちの表面の上に並べる
+      const px = Math.sin(ang) * Math.cos(el) * 0.104, py = 1.2 + Math.sin(el) * 0.141, pz = Math.cos(ang) * Math.cos(el) * 0.106;
+      d = Math.min(d, Math.hypot(hx - px, y - py, z - pz) - 0.0065 - Math.max(0, 0) );
     }
   }
   // 顔：細い目のくり抜き、長い鼻、口、あごの下の結び目
   d = Math.max(d, -box(ax, y, z, 0.023, 1.2, 0.085, 0.016, 0.005, 0.03, 0.003));
   d = smin(d, cone(hx, y, z, 0, 1.2, 0.088, 0, 1.162, 0.1, 0.008, 0.013), 0.008);
   d = Math.max(d, -box(hx, y, z, 0, 1.138, 0.085, 0.015, 0.0045, 0.03, 0.003));
-  for (const sx of [-1, 1]) d = Math.min(d, Math.hypot(Math.hypot(hx - sx * 0.016, y - 1.09) - 0.012, z - 0.075) - 0.005);
   return d;
 }
 
+// ---- 体：写真の比率に合わせて作る（台 0〜0.29、臑当 0.32〜0.54、もも 0.53〜0.63、草摺 0.62〜0.87、胴 0.86〜1.06、頭 1.07〜1.34）----
+const torus = (x, y, z, cy, R, r, sz = 1) => Math.hypot(Math.hypot(x, z / sz) - R, y - cy) - r;
+function body(x, y, z, hollow) {
+  const ax = Math.abs(x);
+  let d = frustum(x, y, z, hollow ? -0.3 : 0, 0.29, 0.132, 0.126, 1, 0.012);          // 円筒の台
+  d = Math.min(d, cone(ax, y, z, 0.08, 0.3, 0.005, 0.08, 0.545, 0.0, 0.066, 0.07));     // 臑当（すね）
+  d = smin(d, ell(ax, y, z, 0.088, 0.58, 0.0, 0.098, 0.078, 0.092), 0.03);              // 膝甲（ふくらんだもも）
+  d = smin(d, frustum(x, y, z, 0.62, 0.875, 0.185, 0.112, 0.82, 0.01), 0.02);           // 草摺
+  d = smin(d, frustum(x, y, z, 0.86, 1.06, 0.105, 0.112, 0.68, 0.02), 0.03);            // 胴
+  d = smin(d, cone(x, y, z, 0, 1.04, 0, 0, 1.1, 0.005, 0.048, 0.045), 0.02);             // 首
+  return d;
+}
 function sdf(x, y, z) {
-  const dd = dataSdf(x, y, z);
-  let d = smin(Math.max(dd, y - 1.1), head(x, y, z), 0.012);              // 首から上は作り込んだ頭
-  const ax = Math.abs(x + 0.005);
-  if (y > 0.59 && y < 0.78) for (const yb of [0.628, 0.678, 0.728]) d = Math.min(d, rib(dd, y - yb, 0.011, 0.007));   // 草摺の段
-  if (y > 0.94 && y < 1.11 && ax > 0.1) for (const yb of [0.97, 1.0, 1.03, 1.06]) d = Math.min(d, rib(dd, y - yb - (ax - 0.1) * 0.3, 0.007, 0.006)); // 肩甲
-  if (y > 0.33 && y < 0.5) for (const yb of [0.355, 0.48]) d = Math.min(d, rib(dd, y - yb, 0.014, 0.008));   // ひざ下・足首の帯
+  const ax = Math.abs(x);
+  let d = smin(body(x, y, z, false), head(x, y, z), 0.012);
+  // 足（台の上の平たいくつ）
+  d = smin(d, ell(ax, y, z, 0.08, 0.305, 0.03, 0.055, 0.025, 0.08), 0.015);
+  // 台のふち、臑当の上下の帯、もものすその帯
+  d = Math.min(d, torus(x, y, z, 0.285, 0.128, 0.012), torus(x, y, z, 0.02, 0.134, 0.012));
+  for (const yb of [0.33, 0.535]) d = Math.min(d, torus(ax - 0.08, y, z, yb, 0.07, 0.009));
+  // 草摺のすその帯と、腰の帯
+  d = Math.min(d, torus(x, y, z, 0.635, 0.18, 0.012, 0.82), torus(x, y, z, 0.67, 0.172, 0.008, 0.82));
+  d = Math.min(d, torus(x, y, z, 0.87, 0.112, 0.012, 0.7));
+  // 肩甲：肩から上腕をおおう丸い板（横の段は表面の溝で表す）
+  d = smin(d, ell(ax, y, z, 0.135, 0.995, 0.0, 0.062, 0.075, 0.062), 0.03);
+  d = Math.min(d, Math.max(Math.abs(ell(ax, y, z, 0.135, 0.995, 0.0, 0.066, 0.079, 0.066)) - 0.004, Math.abs(y - 0.935) - 0.008));
+  // 腕：右腕（向かって左）は下ろして体の前で柄をにぎる、左腕（向かって右）は曲げて手を腰の前に
+  d = smin(d, cone(x, y, z, -0.14, 1.0, 0.0, -0.15, 0.93, 0.02, 0.04, 0.036), 0.02);
+  d = smin(d, cone(x, y, z, -0.15, 0.93, 0.02, -0.11, 0.875, 0.085, 0.04, 0.034), 0.015);
+  for (let k = 0; k < 3; k++) { const t = 0.2 + k * 0.27; d = Math.min(d, cone(x, y, z, -0.15 + 0.04 * t, 0.93 - 0.055 * t, 0.02 + 0.065 * t, -0.15 + 0.04 * (t + 0.06), 0.93 - 0.055 * (t + 0.06), 0.02 + 0.065 * (t + 0.06), 0.044, 0.044)); } // 籠手の段
+  d = smin(d, ell(x, y, z, -0.1, 0.868, 0.1, 0.03, 0.03, 0.03), 0.01);                     // 右手
+  d = smin(d, cone(x, y, z, 0.14, 1.0, 0.0, 0.155, 0.935, 0.02, 0.04, 0.036), 0.02);
+  d = smin(d, cone(x, y, z, 0.155, 0.935, 0.02, 0.09, 0.9, 0.09, 0.04, 0.034), 0.015);
+  for (let k = 0; k < 3; k++) { const t = 0.2 + k * 0.27; d = Math.min(d, cone(x, y, z, 0.155 - 0.065 * t, 0.935 - 0.035 * t, 0.02 + 0.07 * t, 0.155 - 0.065 * (t + 0.06), 0.935 - 0.035 * (t + 0.06), 0.02 + 0.07 * (t + 0.06), 0.044, 0.044)); } // 籠手の段
+  d = smin(d, ell(x, y, z, 0.075, 0.895, 0.1, 0.03, 0.028, 0.03), 0.01);                   // 左手
+  d = Math.min(d, ell(x, y, z, 0.108, 0.91, 0.075, 0.03, 0.03, 0.022));                     // 鞆（左手首のまるい防具）
+  // 大刀：右手で柄をにぎり、腰の前を左へ横たえる（柄頭に輪）
+  d = Math.min(d, cone(x, y, z, -0.135, 0.875, 0.1, -0.06, 0.865, 0.11, 0.015, 0.016));    // 柄
+  d = Math.min(d, Math.hypot(Math.hypot(x + 0.152, y - 0.877) - 0.016, z - 0.098) - 0.006); // 環頭
+  d = Math.min(d, cone(x, y, z, -0.06, 0.865, 0.11, -0.053, 0.864, 0.111, 0.028, 0.028));   // つば
+  d = Math.min(d, cone(x, y, z, -0.053, 0.864, 0.111, 0.16, 0.83, 0.1, 0.022, 0.02));       // さや
+  for (const t of [0.35, 0.7]) d = Math.min(d, cone(x, y, z, -0.053 + 0.213 * t, 0.864 - 0.034 * t, 0.111 - 0.011 * t, -0.053 + 0.213 * (t + 0.03), 0.864 - 0.034 * (t + 0.03), 0.111 - 0.011 * (t + 0.03), 0.026, 0.024)); // さやの帯
   // 胸の2つの結び目（引合せ）
-  for (const yk of [1.0, 0.865]) {
-    const kx = x + 0.005, ky = y - yk;
-    let k2 = Math.min(Math.abs(Math.hypot(Math.abs(kx) - 0.016, ky) - 0.011) - 0.004, Math.hypot(kx, ky) - 0.007);
-    k2 = Math.min(k2, Math.max(Math.abs(Math.abs(kx) - 0.01 - (-ky) * 0.3) - 0.004, ky, -ky - 0.03));
-    if (z > 0) d = Math.min(d, Math.max(Math.abs(dd - 0.005) - 0.005, k2));
+  for (const yk of [1.02, 0.94]) {
+    const zf = 0.078 + 0.004;
+    for (const sx of [-1, 1]) d = Math.min(d, Math.hypot(Math.hypot(x - sx * 0.015, y - yk) - 0.01, z - zf) - 0.004);
+    d = Math.min(d, cone(x, y, z, -0.008, yk - 0.005, zf, -0.02, yk - 0.03, zf, 0.004, 0.004));
+    d = Math.min(d, cone(x, y, z, 0.008, yk - 0.005, zf, 0.02, yk - 0.03, zf, 0.004, 0.004));
   }
-  // 弓：左手でにぎり、顔の横までまっすぐ立てる
-  d = Math.min(d, cone(x, y, z, 0.11, 0.7, 0.165, 0.125, 1.3, 0.11, 0.016, 0.013));
   return Math.max(d, -y);
 }
-const core = (x, y, z) => Math.min(Math.max(dataSdf(x, y, z), y - 1.1), ell(x + 0.01, y, z, 0, 1.185, 0.03, 0.05, 0.065, 0.05));
+const core = (x, y, z) => Math.min(body(x, y, z, true), ell(x + 0.01, y, z, 0, 1.185, 0.03, 0.05, 0.065, 0.05));
 
 // 柄頭の輪（環頭）
 function plateRing(x, y, z) {
@@ -206,13 +250,19 @@ float bjNoise(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
   return mix(mix(mix(bjHash(i), bjHash(i + vec3(1,0,0)), f.x), mix(bjHash(i + vec3(0,1,0)), bjHash(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(bjHash(i + vec3(0,0,1)), bjHash(i + vec3(1,0,1)), f.x), mix(bjHash(i + vec3(0,1,1)), bjHash(i + vec3(1,1,1)), f.x), f.y), f.z); }
 float patH(vec3 p) {
-  // 素焼きの土の肌：なめらかなむら（点々にならないよう、ぼかしたノイズ）
-  float h = (bjNoise(p * 70.0) - 0.5) * 0.35;
-  vec2 c = vec2(p.x + 0.005, p.z - 0.04);
-  float ang = atan(c.x, c.y);
-  // 胴と草摺：縦に長い板の合わせ目（太めでやわらかい溝）
-  if (p.y > 0.6 && p.y < 1.02 && abs(c.x) < 0.14 && c.y > -0.02) h -= bjLine(fract(ang * 4.0) - 0.5, 0.11) * 1.4;
-  // 頬当（顔の両わき）の格子
+  float h = (bjNoise(p * 60.0) - 0.5) * 0.18;
+  float ang = atan(p.x, p.z);
+  // 胴・草摺：縦に長い板（小札）の合わせ目と、段の線
+  if (p.y > 0.64 && p.y < 1.06 && abs(p.x) < (p.y > 0.88 ? 0.1 : 0.2)) {
+    h -= bjLine(fract(ang * 5.0) - 0.5, 0.08) * 1.4;
+    if (p.y > 0.88) h -= bjLine(fract((p.y - 0.88) / 0.045) - 0.5, 0.06) * 1.1;
+    else h -= bjLine(fract((p.y - 0.68) / 0.05) - 0.5, 0.06) * 1.1;
+  }
+  // 肩甲：横の段
+  if (p.y > 0.93 && p.y < 1.07 && abs(p.x) > 0.09 && abs(p.x) < 0.21) h -= bjLine(fract((p.y - 0.93) / 0.03) - 0.5, 0.1) * 1.4;
+  // 臑当：縦の板の合わせ目
+  if (p.y > 0.33 && p.y < 0.53) h -= bjLine(fract(atan(abs(p.x) - 0.08, p.z) * 1.4) - 0.5, 0.06) * 1.3;
+  // 頬当（顔の両わき・後ろ）の格子
   if (p.y > 1.08 && p.y < 1.25 && (abs(p.x + 0.01) > 0.06 || p.z < -0.02)) h -= max(bjLine(fract(p.y / 0.03) - 0.5, 0.14), bjLine(fract(p.z / 0.03) - 0.5, 0.14)) * 1.6;
   return h * 0.0011;
 }
@@ -239,7 +289,7 @@ export const bujin = {
   core,
   thickness: 0.035,
   voxel: 0.009,
-  bounds: { min: [-0.26, -0.02, -0.24], max: [0.24, 1.38, 0.23] },
+  bounds: { min: [-0.24, -0.02, -0.18], max: [0.24, 1.37, 0.2] },
   height: 1.36,
   clearRadius: 0.5,
   patternGLSL,
