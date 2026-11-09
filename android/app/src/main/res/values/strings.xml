@@ -4,6 +4,6 @@
     <string name="title_activity_main">復元せよ 土器・土偶・埴輪</string>
     <string name="package_name">jp.techgym.doki</string>
     <string name="custom_url_scheme">jp.techgym.doki</string>
-    <!-- AdMob のアプリ ID。本番の ID が届くまでは Google 公式のテスト用アプリ ID -->
-    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+    <!-- AdMob のアプリ ID（「復元せよ」） -->
+    <string name="admob_app_id">ca-app-pub-6411535997477460~5826388695</string>
 </resources>
