@@ -199,3 +199,6 @@ html[lang=en] .hud-name { min-width: 0; }
 html[lang=en] .hud-name strong { font-size: 15px; line-height: 1.2; }
 html[lang=en] .stat { min-width: 60px; padding: 6px 9px; }
 html[lang=en] .artifact .nm { white-space: normal; overflow-wrap: anywhere; }
+/* Web 版だけ：Android アプリ版へのリンク */
+.store-link { display: block; text-align: center; padding: 9px; border: 1px solid var(--accent); border-radius: 12px; color: var(--accent-2); font-weight: 700; font-size: 14px; text-decoration: none; background: rgba(224,121,58,.08); }
+.store-link:hover { background: rgba(224,121,58,.18); }
