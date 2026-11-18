@@ -38,4 +38,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 画面は縦向きに固定しているが、縦向きの画面は必須ではない（横向きだけの端末やタブレット・Chromebook でもインストールできるように） -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
 </manifest>
