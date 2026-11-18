@@ -13,7 +13,7 @@ window.Ads = (() => {
       },
       // 本番の広告ユニット（AdMob の Android アプリ「復元せよ」）
       production: {
-        interstitial: 'ca-app-pub-6411535997477460/5490687635',
+        interstitial: 'ca-app-pub-6411535997477460/3484492891',
         rewarded: 'ca-app-pub-6411535997477460/3557503918',
         banner: 'ca-app-pub-6411535997477460/1211176637',
       },
